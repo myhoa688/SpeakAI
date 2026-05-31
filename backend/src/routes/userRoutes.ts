@@ -4,6 +4,7 @@ import { Router } from 'express';
 
 import { authRequired } from '../middleware/auth.js';
 import { PracticeSession } from '../models/PracticeSession.js';
+import { InterviewSession } from '../models/InterviewSession.js';
 import { serializeUser } from '../utils/auth.js';
 import { calculateWeekComparison, claimGoalReward, syncGoalsWithStats } from '../utils/progression.js';
 import {
@@ -45,7 +46,7 @@ const mapSession = (session: any) => ({
 router.get('/dashboard', authRequired, async (req, res) => {
   const user = req.user!;
 
-  const [todayStats, thisWeekMinutes, lastWeekMinutes, weeklyTimeline, recentSessions, leaderboard, totalSessions] =
+  const [todayStats, thisWeekMinutes, lastWeekMinutes, weeklyTimeline, recentPractice, leaderboard, totalPractice, recentInterviews, totalInterviews] =
     await Promise.all([
       getTodayPracticeStats(user._id.toString()),
       getWeekMinutes(user._id.toString(), 0),
@@ -53,7 +54,9 @@ router.get('/dashboard', authRequired, async (req, res) => {
       getWeeklyTimeline(user._id.toString()),
       getRecentPracticeSessions(user._id.toString(), 6),
       getLeaderboard(10),
-      PracticeSession.countDocuments({ userId: user._id })
+      PracticeSession.countDocuments({ userId: user._id }),
+      InterviewSession.find({ userId: user._id, status: 'completed' }).sort({ completedAt: -1 }).limit(6).lean(),
+      InterviewSession.countDocuments({ userId: user._id, status: 'completed' })
     ]);
 
   syncGoalsWithStats(user, todayStats);
@@ -62,7 +65,7 @@ router.get('/dashboard', authRequired, async (req, res) => {
   return res.json({
     user: serializeUser(user),
     overview: {
-      totalSessions,
+      totalSessions: totalInterviews, // Show interview count for "Tổng số phỏng vấn"
       sessionsToday: todayStats.sessionCount,
       minutesToday: todayStats.totalMinutes,
       thisWeekMinutes,
@@ -71,7 +74,15 @@ router.get('/dashboard', authRequired, async (req, res) => {
     progress: calculateWeekComparison(thisWeekMinutes, lastWeekMinutes),
     weeklyTimeline,
     leaderboard,
-    recentSessions: recentSessions.map(mapSession)
+    recentSessions: recentInterviews.map((session: any) => ({
+      id: session._id.toString(),
+      practiceType: 'interview',
+      topic: session.specialization || session.industry || 'Phỏng vấn',
+      difficulty: session.difficulty,
+      totalScore: session.overallScore,
+      createdAt: session.createdAt,
+      completedAt: session.completedAt
+    }))
   });
 });
 

@@ -1,0 +1,236 @@
+.xi-badge-pulse {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 99px;
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success, #10b981);
+  font-weight: 600;
+  font-size: 0.85rem;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.xi-badge-pulse::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success, #10b981);
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.xi-badge-rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.xi-badge-rank.gold {
+  background: linear-gradient(135deg, #fef08a 0%, #eab308 100%);
+  color: #713f12;
+  border: 1px solid #fde047;
+}
+
+.xi-badge-rank.silver {
+  background: linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%);
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.xi-badge-rank.bronze {
+  background: linear-gradient(135deg, #fed7aa 0%, #f97316 100%);
+  color: #7c2d12;
+  border: 1px solid #fdba74;
+}
+
+/* --- Fix 14: Modern Dashboard Layout --- */
+.dashboard-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+}
+
+.stat-card-modern {
+  position: relative;
+  /* Dark flat background like image 2 - matches the page surface */
+  background: #18191b !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  cursor: default;
+  min-height: 130px;
+}
+
+.stat-card-modern:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.stat-card-modern-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  position: relative;
+  z-index: 2;
+  margin-bottom: 1rem;
+}
+
+.stat-card-title {
+  font-size: 0.88rem;
+  color: #9ca3af; /* Muted grey-white like image 2 */
+  line-height: 1.45;
+  font-weight: 400;
+  max-width: 75%;
+}
+
+/* No background box around icon - just bare icon with accent colour */
+.stat-card-icon-wrap {
+  background: transparent !important;
+  border-radius: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-card-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #ffffff;
+  position: relative;
+  z-index: 2;
+  margin-bottom: 0;
+  line-height: 1;
+}
+
+/* Blob: dark grey shadow at bottom-right corner - NOT colourful */
+.stat-card-blob {
+  position: absolute;
+  right: -20px;
+  bottom: -20px;
+  width: 90px;
+  height: 90px;
+  background: #222530 !important;
+  border-radius: 50%;
+  z-index: 1;
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.stat-card-modern:hover .stat-card-blob {
+  transform: scale(1.6);
+}
+
+/* --- Hero Banner (Mock CTA) --- */
+.mock-cta-card {
+  background: #5c56f5; /* Match lighter purple of image 2 */
+  border-radius: 16px;
+  padding: 1.5rem 1.75rem;
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s ease;
+}
+
+.mock-cta-card:hover {
+  transform: translateY(-4px);
+}
+
+.mock-cta-content {
+  position: relative;
+  z-index: 2;
+  max-width: 95%;
+}
+
+.mock-cta-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.6rem;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.mock-cta-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem 0;
+  color: #fff;
+}
+
+.mock-cta-desc {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.6;
+  margin-bottom: 1.25rem;
+}
+
+html[data-theme='dark'] .mock-cta-button,
+.app-shell .mock-cta-button,
+.mock-cta-button {
+  background: #fff !important;
+  color: #6d28d9 !important;
+  -webkit-text-fill-color: #6d28d9 !important;
+  opacity: 1 !important;
+  width: 100%;
+  justify-content: center;
+  border: none;
+  padding: 0.9rem 1.75rem;
+  border-radius: 100px !important;
+  font-weight: 800 !important;
+  font-size: 1rem;
+  letter-spacing: 0.3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.mock-cta-button:hover {
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateX(4px);
+}
+
+.mock-cta-watermark {
+  position: absolute;
+  right: -20px;
+  top: -10px;
+  opacity: 0.12;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Ensure global theme applies */
+
+/* Apply the dark flat background to all other panels in the dashboard */
+.dashboard-panel {
+  background: #18191b !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 12px;
+}

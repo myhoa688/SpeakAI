@@ -1,0 +1,191 @@
+/* AdminPage.css */
+
+.xi-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--glass-bg, rgba(24, 25, 27, 0.4));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  margin-top: 1.5rem;
+  box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.05);
+}
+
+.xi-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+}
+
+.xi-table th {
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid var(--glass-border);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #6b7280);
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
+}
+
+.xi-table th.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--transition-normal);
+}
+
+.xi-table th.sortable-header:hover {
+  color: var(--color-text-primary);
+}
+
+.xi-table td {
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+.xi-table tr:last-child td {
+  border-bottom: none;
+}
+
+.xi-table tr:hover td {
+  background-color: var(--color-primary-surface);
+}
+
+.xi-table-controls {
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.xi-search-input {
+  padding: 0.75rem 1.25rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  font-size: 0.875rem;
+  width: 100%;
+  max-width: 320px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.xi-search-input:focus {
+  border-color: var(--color-primary, #6366f1);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+.xi-avatar-initials {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-primary-surface);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.xi-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.xi-user-info strong {
+  font-weight: 500;
+}
+
+.xi-xp-streak {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.xi-btn-outline-primary {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--color-primary);
+  background: transparent;
+  color: var(--color-primary);
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.xi-btn-outline-primary:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: white;
+}
+
+.xi-btn-outline-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.xi-btn-outline-danger {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #ef4444;
+  background: transparent;
+  color: #ef4444;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.xi-btn-outline-danger:hover:not(:disabled) {
+  background: #ef4444;
+  color: white;
+}
+
+.xi-btn-outline-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.badge-easy {
+  background: #dcfce7;
+  color: #166534;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-hard {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-dark {
+  background: #f1f5f9;
+  color: #334155;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.py-8 {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}

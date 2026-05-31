@@ -1,251 +1,325 @@
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ArrowRight,
-  AudioLines,
-  BarChart3,
-  Bot,
   BriefcaseBusiness,
-  CheckCheck,
-  FileSearch,
+  CheckCircle2,
+  ChevronDown,
+  LayoutDashboard,
   Mic2,
-  ShieldCheck,
   Sparkles,
   Target,
   Trophy,
-  UsersRound
+  Users
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-
 import { ThemeToggle } from '../components/ThemeToggle';
+import { api } from '../lib/api';
 
-const heroNotes = [
-  { label: 'Chế độ', value: 'Phòng thoại AI và ghi âm chấm điểm' },
-  { label: 'Ngôn ngữ', value: 'Phản hồi tiếng Việt có dấu' },
-  { label: 'Luồng', value: 'Nói trực tiếp → chấm điểm → lưu lịch sử' }
+const COMPANIES = [
+  'VNG', 'Shopee', 'MoMo', 'Techcombank', 'FPT Software',
+  'Tiki', 'Grab', 'VinGroup', 'VNPT', 'Viettel', 'Zalo', 'VNPAY'
 ];
 
-const quickButtons = [
-  { icon: Mic2, title: 'Phòng thoại AI', subtitle: 'Nói trực tiếp với AI' },
-  { icon: AudioLines, title: 'Chấm bài nói', subtitle: 'Tốc độ, âm lượng, độ rõ' },
-  { icon: FileSearch, title: 'Phân tích CV', subtitle: 'Điểm mạnh và câu hỏi gợi ý' },
-  { icon: BarChart3, title: 'Theo dõi tiến độ', subtitle: 'Mục tiêu ngày và lịch sử' }
-];
-
-const featureCards = [
+const FAQS = [
   {
-    icon: Mic2,
-    title: 'Phòng hội thoại realtime',
-    description: 'Mở phiên luyện để nói chuyện với AI bằng giọng nói và nhận phản hồi ngay trong cuộc hội thoại.'
+    q: 'SpeakAI khác gì so với tự tập trước gương?',
+    a: 'SpeakAI đóng vai trò như một người phỏng vấn thực thụ: lắng nghe, phân tích tốc độ/âm lượng giọng nói, đặt câu hỏi xoáy sâu (follow-up) dựa trên chính câu trả lời của bạn, và chấm điểm chi tiết.'
   },
   {
-    icon: AudioLines,
-    title: 'Ghi âm và chấm bài nói',
-    description: 'Thu âm, nghe lại, xem tốc độ nói, độ rõ phát âm, khoảng dừng và các đoạn cần cải thiện.'
+    q: 'Câu hỏi phỏng vấn được lấy từ đâu?',
+    a: 'Ngân hàng câu hỏi được tổng hợp từ JD thực tế của hơn 100+ công ty hàng đầu (VNG, Shopee, Techcombank...) và liên tục cập nhật bởi AI.'
   },
   {
-    icon: FileSearch,
-    title: 'Phân tích CV',
-    description: 'Biến CV thành điểm mạnh, điểm cần cải thiện, câu hỏi phỏng vấn và kế hoạch luyện tập cá nhân hóa.'
+    q: 'Hệ thống có hỗ trợ tiếng Việt không?',
+    a: 'Có. SpeakAI được tối ưu đặc biệt cho tiếng Việt, nhận diện chính xác ngữ điệu, từ lóng công sở và các thuật ngữ chuyên ngành.'
   },
   {
-    icon: BriefcaseBusiness,
-    title: 'Câu hỏi phỏng vấn nối tiếp',
-    description: 'AI hỏi tiếp theo câu trả lời trước, tạo tình huống phản biện và thay đổi độ khó theo mục tiêu luyện tập.'
-  },
-  {
-    icon: Target,
-    title: 'Mục tiêu ngày',
-    description: 'Hoàn thành nhiệm vụ để nhận thưởng XP, giữ nhịp luyện đều và mở khóa năng lượng cho các phiên tiếp theo.'
-  },
-  {
-    icon: Trophy,
-    title: 'Bảng xếp hạng và tiến độ tuần',
-    description: 'Theo dõi xếp hạng XP tuần, lịch sử phiên luyện và mức chênh lệch so với tuần trước.'
+    q: 'Tôi có thể dùng thử miễn phí không?',
+    a: 'Bạn có thể tạo tài khoản và nhận ngay 5 lượt luyện tập miễn phí mỗi ngày. Nâng cấp lên gói Pro để không giới hạn lượt tập.'
   }
 ];
 
-const introPoints = [
-  'Luyện thuyết trình và phỏng vấn trong cùng một nền tảng.',
-  'AI phản hồi bằng tiếng Việt có dấu theo đúng chủ đề đang chọn.',
-  'Lưu lịch sử và theo dõi tiến độ trong cùng một luồng sử dụng.'
-];
-
-const audiences = [
+const FEATURES = [
   {
-    title: 'Sinh viên chuẩn bị bảo vệ đồ án',
-    description: 'Luyện mở bài, trình bày ý chính và trả lời phản biện rõ ràng hơn.',
-    image:
-      'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80'
+    title: 'Phòng phỏng vấn Realtime',
+    desc: 'Trải nghiệm áp lực phỏng vấn thật với AI. Trả lời bằng giọng nói, AI sẽ phản hồi và hỏi xoáy sâu ngay lập tức.',
+    icon: Mic2
   },
   {
-    title: 'Ứng viên đang chuẩn bị phỏng vấn',
-    description: 'Tập phản xạ, kể ví dụ chặt chẽ và giữ nhịp trả lời tự tin hơn.',
-    image:
-      'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=900&q=80'
+    title: 'Phân tích & Chấm điểm',
+    desc: 'Báo cáo chi tiết về tốc độ nói (WPM), khoảng dừng, từ thừa (filler words) và cấu trúc câu trả lời.',
+    icon: Target
   },
   {
-    title: 'Người đi làm muốn nói chắc hơn',
-    description: 'Cải thiện kỹ năng trình bày, pitching và giao tiếp chuyên nghiệp.',
-    image:
-      'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=900&q=80'
+    title: 'Bộ câu hỏi theo JD thực tế',
+    desc: 'Hàng ngàn bộ phỏng vấn được thiết kế chuẩn xác theo từng vị trí của các công ty công nghệ, tài chính hàng đầu.',
+    icon: BriefcaseBusiness
+  },
+  {
+    title: 'Bảng xếp hạng năng lực',
+    desc: 'Biết mình đang ở đâu. Hệ thống gamification đánh giá bạn nằm trong top bao nhiêu % ứng viên.',
+    icon: Trophy
   }
 ];
 
 export function LandingPage() {
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [stats, setStats] = useState({
+    totalSets: 150,
+    totalAttempts: 25000,
+    totalQuestions: 15000,
+    totalCompanies: 120,
+    rating: 4.9
+  });
+
+  useEffect(() => {
+    api.get('/interview-sets/stats').then(res => {
+      if (res.data) setStats(res.data);
+    }).catch(() => {});
+  }, []);
+
   return (
-    <div className="landing-page landing-home-rebuild">
-      <section className="landing-home-hero">
-        <div className="landing-home-overlay" />
-
-        <header className="landing-home-topbar">
-          <div className="landing-home-brand">
-            <span className="landing-home-brand-mark">SA</span>
-            <div>
-              <p>SpeakAI</p>
-              <strong>Hệ thống luyện thuyết trình và phỏng vấn ảo tích hợp AI</strong>
-            </div>
+    <div className="landing-x-wrapper">
+      {/* HEADER */}
+      <header className="x-header">
+        <div className="x-container x-header-inner">
+          <div className="x-logo">
+            <img src="/logo.png" alt="SpeakAI Logo" style={{ width: 32, height: 32 }} />
+            <strong>SpeakAI</strong>
           </div>
-
-          <nav className="landing-home-nav" aria-label="Điều hướng chính">
-            <a href="#chuc-nang">Chức năng</a>
-            <a href="#doi-tuong">Đối tượng</a>
-            <a href="#bat-dau">Bắt đầu</a>
+          <nav className="x-nav-desktop">
+            <a href="#features">Tính năng</a>
+            <a href="#interview-sets">Bộ phỏng vấn</a>
+            <a href="#faq">Hỏi đáp</a>
           </nav>
-
-          <div className="landing-home-actions">
+          <div className="x-header-actions">
             <ThemeToggle />
-
-            <Link to="/login" className="ghost-button large-button">
-              Đăng nhập
-            </Link>
-            <Link to="/register" className="primary-button large-button">
-              Đăng ký miễn phí
-            </Link>
+            <Link to="/login" className="x-btn-ghost">Đăng nhập</Link>
+            <Link to="/register" className="x-btn-primary">Bắt đầu miễn phí</Link>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <div className="landing-home-hero-body">
-          <div className="landing-home-copy">
-            <p className="eyebrow">SpeakAI Studio</p>
-            <h1>Không gian luyện nói với AI.</h1>
-            <p className="landing-home-lead">
-              Mở phòng thoại, ghi âm chấm điểm, phân tích CV và theo dõi tiến độ trong một hệ thống gọn và rõ ràng.
-            </p>
+      {/* HERO SECTION */}
+      <section className="x-hero">
+        <div className="x-container">
+          <div className="x-hero-grid">
+            <div className="x-hero-content">
+              <div className="x-hero-badge">
+                <Sparkles size={14} className="x-icon-spin" />
+                <span>Nền tảng luyện phỏng vấn AI #1 Việt Nam</span>
+              </div>
+              <h1 className="x-hero-title">
+                Vượt qua mọi vòng phỏng vấn với <span>Sự Tự Tin</span>
+              </h1>
+              <p className="x-hero-desc">
+                Luyện tập trả lời phỏng vấn bằng giọng nói với AI. Nhận phản hồi chi tiết về phát âm, nội dung và phản xạ ngay lập tức. Sẵn sàng chinh phục mọi nhà tuyển dụng.
+              </p>
+              <div className="x-hero-cta-group">
+                <Link to="/register" className="x-btn-primary x-btn-lg">
+                  Luyện tập ngay miễn phí
+                  <ArrowRight size={18} />
+                </Link>
+                <p className="x-hero-micro">Không cần thẻ tín dụng • Miễn phí 5 lượt/ngày</p>
+              </div>
 
-            <div className="landing-home-cta-row">
-              <Link to="/register" className="primary-button large-button">
-                <Sparkles size={18} />
-                Bắt đầu ngay
-              </Link>
-              <Link to="/login" className="ghost-button large-button">
-                Xem không gian luyện tập
-                <ArrowRight size={18} />
-              </Link>
+              {/* Stats Ribbon */}
+              <div className="x-stats-ribbon">
+                <div className="x-stat-item">
+                  <strong>{stats.totalQuestions.toLocaleString()}+</strong>
+                  <span>Câu hỏi phỏng vấn</span>
+                </div>
+                <div className="x-stat-divider" />
+                <div className="x-stat-item">
+                  <strong>{stats.totalAttempts.toLocaleString()}+</strong>
+                  <span>Lượt luyện tập</span>
+                </div>
+                <div className="x-stat-divider" />
+                <div className="x-stat-item">
+                  <strong>{stats.rating}/5.0</strong>
+                  <span>Đánh giá học viên</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="x-hero-visual">
+              <div className="x-hero-card-stack">
+                <div className="x-floating-card top-card">
+                  <div className="x-fc-icon"><BriefcaseBusiness size={20} /></div>
+                  <div className="x-fc-body">
+                    <strong>VNG - Frontend Developer</strong>
+                    <span>Đang mô phỏng phỏng vấn...</span>
+                  </div>
+                </div>
+                
+                <div className="x-floating-card mid-card">
+                  <div className="x-fc-icon green"><CheckCircle2 size={20} /></div>
+                  <div className="x-fc-body">
+                    <strong>Phân tích giọng nói</strong>
+                    <span>Tốc độ: 125 WPM (Tuyệt vời)</span>
+                  </div>
+                </div>
+
+                <div className="x-floating-card bot-card">
+                  <div className="x-fc-icon purple"><Trophy size={20} /></div>
+                  <div className="x-fc-body">
+                    <strong>Kết quả bài test</strong>
+                    <span>Bạn thuộc Top 5% ứng viên! 🚀</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-
-          <div className="landing-home-sidepanel">
-            {heroNotes.map((item, index) => (
-              <div key={item.label} className={`landing-home-mini-card${index === heroNotes.length - 1 ? ' accent' : ''}`}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="landing-home-quick-grid">
-          {quickButtons.map((item) => {
-            const Icon = item.icon;
-            return (
-              <article key={item.title} className="landing-home-quick-card">
-                <span className="landing-home-quick-icon">
-                  <Icon size={18} />
-                </span>
-                <strong>{item.title}</strong>
-                <p>{item.subtitle}</p>
-              </article>
-            );
-          })}
         </div>
       </section>
 
-      <section className="landing-home-intro">
-        <div className="landing-home-intro-media">
-          <img
-            src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80"
-            alt="Người đang trình bày trước nhóm"
-            loading="lazy"
-          />
-        </div>
-
-        <div className="landing-home-intro-copy">
-          <p className="eyebrow">Giới thiệu nhanh</p>
-          <h2>Luyện tập, nhận phản hồi và theo dõi tiến độ trong một nơi.</h2>
-          <div className="landing-home-intro-list">
-            {introPoints.map((item) => (
-              <div key={item} className="landing-home-intro-item">
-                <ShieldCheck size={18} />
-                <p>{item}</p>
-              </div>
+      {/* TRUST MARQUEE */}
+      <section className="x-marquee-section">
+        <p className="x-marquee-title">Câu hỏi được tổng hợp từ các đợt tuyển dụng của</p>
+        <div className="x-marquee-container">
+          <div className="x-marquee-content">
+            {[...COMPANIES, ...COMPANIES].map((company, i) => (
+              <span key={i} className="x-marquee-item">{company}</span>
             ))}
           </div>
         </div>
       </section>
 
-      <section id="chuc-nang" className="landing-home-feature-section">
-        <div className="landing-home-section-head">
-          <p className="eyebrow">Các chức năng hiện có</p>
-          <h2>Bộ công cụ luyện tập chính.</h2>
-        </div>
+      {/* FEATURES SECTION */}
+      <section id="features" className="x-features-section">
+        <div className="x-container">
+          <div className="x-section-header centered">
+            <h2 className="x-section-title">Nâng cấp kỹ năng toàn diện</h2>
+            <p className="x-section-desc">SpeakAI mang đến trải nghiệm phỏng vấn sát với thực tế nhất.</p>
+          </div>
 
-        <div className="landing-home-feature-grid">
-          {featureCards.map((item) => {
-            const Icon = item.icon;
-            return (
-              <article key={item.title} className="landing-home-feature-card">
-                <span className="landing-home-feature-icon">
-                  <Icon size={20} />
-                </span>
-                <h3>{item.title}</h3>
-                <p>{item.description}</p>
-              </article>
-            );
-          })}
+          <div className="x-features-grid">
+            {FEATURES.map((feat, i) => {
+              const Icon = feat.icon;
+              return (
+                <div key={i} className="x-feature-card">
+                  <div className="x-feature-icon-wrapper">
+                    <Icon size={24} />
+                  </div>
+                  <h3>{feat.title}</h3>
+                  <p>{feat.desc}</p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
 
-      <section id="doi-tuong" className="landing-home-audience-section">
-        <div className="landing-home-section-head centered">
-          <p className="eyebrow">Phù hợp với ai</p>
-          <h2>Dành cho học tập, ứng tuyển và giao tiếp công việc.</h2>
-        </div>
-
-        <div className="landing-home-audience-grid">
-          {audiences.map((item) => (
-            <article key={item.title} className="landing-home-audience-card">
-              <img src={item.image} alt={item.title} loading="lazy" />
-              <div className="landing-home-audience-copy">
-                <h3>{item.title}</h3>
-                <p>{item.description}</p>
+      {/* INTERVIEW SETS SECTION */}
+      <section id="interview-sets" className="x-features-section" style={{ background: 'transparent' }}>
+        <div className="x-container">
+          <div className="x-section-header centered">
+            <h2 className="x-section-title">Bộ phỏng vấn nổi bật</h2>
+            <p className="x-section-desc">Luyện tập theo bộ câu hỏi thực tế từ các kỳ thi tuyển dụng.</p>
+          </div>
+          
+          <div className="x-features-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+            <div className="x-feature-card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <strong style={{ fontSize: '1.1rem' }}>Business Analyst (BA)</strong>
+                <span className="text-success" style={{ padding: '0.25rem 0.5rem', background: 'rgba(16,185,129,0.1)', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>15 Câu hỏi</span>
               </div>
-            </article>
-          ))}
+              <p style={{ color: 'var(--text-secondary)' }}>Tổng hợp câu hỏi phỏng vấn vị trí Phân tích nghiệp vụ, đánh giá tư duy logic và kỹ năng giải quyết vấn đề.</p>
+              <Link to="/register" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem', color: 'var(--teal-strong)', fontWeight: 600, textDecoration: 'none' }}>Luyện tập ngay <ArrowRight size={16} /></Link>
+            </div>
+            
+            <div className="x-feature-card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <strong style={{ fontSize: '1.1rem' }}>Frontend Developer</strong>
+                <span className="text-success" style={{ padding: '0.25rem 0.5rem', background: 'rgba(16,185,129,0.1)', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>20 Câu hỏi</span>
+              </div>
+              <p style={{ color: 'var(--text-secondary)' }}>Câu hỏi về React, Vue, Javascript core và kỹ năng xây dựng giao diện tối ưu hiệu năng.</p>
+              <Link to="/register" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem', color: 'var(--teal-strong)', fontWeight: 600, textDecoration: 'none' }}>Luyện tập ngay <ArrowRight size={16} /></Link>
+            </div>
+            
+            <div className="x-feature-card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <strong style={{ fontSize: '1.1rem' }}>Marketing Executive</strong>
+                <span className="text-success" style={{ padding: '0.25rem 0.5rem', background: 'rgba(16,185,129,0.1)', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>12 Câu hỏi</span>
+              </div>
+              <p style={{ color: 'var(--text-secondary)' }}>Kiểm tra kiến thức Digital Marketing, Content và kỹ năng lập kế hoạch chiến dịch truyền thông.</p>
+              <Link to="/register" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem', color: 'var(--teal-strong)', fontWeight: 600, textDecoration: 'none' }}>Luyện tập ngay <ArrowRight size={16} /></Link>
+            </div>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: '3rem' }}>
+            <Link to="/interview-sets" className="x-btn-ghost">Xem tất cả bộ phỏng vấn</Link>
+          </div>
         </div>
       </section>
 
-      <section id="bat-dau" className="landing-home-cta">
-        <div>
-          <p className="eyebrow">Sẵn sàng bắt đầu</p>
-          <h2>Tạo tài khoản và mở phiên luyện đầu tiên.</h2>
+      {/* DASHBOARD PREVIEW */}
+      <section className="x-preview-section">
+        <div className="x-container">
+          <div className="x-preview-box">
+            <div className="x-preview-content">
+              <h2>Mọi thứ bạn cần trong một Dashboard</h2>
+              <p>Quản lý lịch sử, theo dõi sự tiến bộ qua từng ngày và xem chi tiết đánh giá cho mỗi câu trả lời.</p>
+              <ul className="x-check-list">
+                <li><CheckCircle2 size={18} className="text-success" /> Lưu trữ âm thanh mọi phiên luyện</li>
+                <li><CheckCircle2 size={18} className="text-success" /> Bản dịch transcript chính xác</li>
+                <li><CheckCircle2 size={18} className="text-success" /> Gợi ý câu trả lời tốt hơn (Mẫu STAR)</li>
+              </ul>
+              <Link to="/register" className="x-btn-primary" style={{ marginTop: '1.5rem' }}>
+                Khám phá ngay <ArrowRight size={18} />
+              </Link>
+            </div>
+            <div className="x-preview-image">
+              <div className="x-mock-dashboard">
+                <div className="x-mock-header"><LayoutDashboard size={16}/> SpeakAI Dashboard</div>
+                <div className="x-mock-body">
+                  <div className="x-mock-chart"></div>
+                  <div className="x-mock-list">
+                    <div className="x-mock-item"></div>
+                    <div className="x-mock-item"></div>
+                    <div className="x-mock-item"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
+      </section>
 
-        <div className="landing-home-cta-actions">
-          <Link to="/register" className="primary-button large-button">
-            <UsersRound size={18} />
-            Tạo tài khoản
-          </Link>
-          <Link to="/login" className="ghost-button large-button">
-            Tôi đã có tài khoản
+      {/* FAQ SECTION */}
+      <section id="faq" className="x-faq-section">
+        <div className="x-container x-faq-container">
+          <div className="x-section-header centered">
+            <h2 className="x-section-title">Câu hỏi thường gặp</h2>
+          </div>
+          
+          <div className="x-faq-list">
+            {FAQS.map((faq, i) => (
+              <div 
+                key={i} 
+                className={`x-faq-item ${openFaq === i ? 'active' : ''}`}
+                onClick={() => setOpenFaq(openFaq === i ? null : i)}
+              >
+                <div className="x-faq-question">
+                  <strong>{faq.q}</strong>
+                  <ChevronDown size={20} className="x-faq-icon" />
+                </div>
+                <div className="x-faq-answer">
+                  <p>{faq.a}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER CTA */}
+      <section className="x-footer-cta">
+        <div className="x-container centered">
+          <h2>Sẵn sàng nhận được Offer Letter?</h2>
+          <p>Hàng ngàn ứng viên đã thành công. Đến lượt bạn rồi.</p>
+          <Link to="/register" className="x-btn-primary x-btn-lg x-btn-glow" style={{ marginTop: '2rem' }}>
+            Bắt đầu luyện tập miễn phí
+            <Sparkles size={18} />
           </Link>
         </div>
       </section>

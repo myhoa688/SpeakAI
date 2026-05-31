@@ -62,18 +62,21 @@ router.post('/sessions', authRequired, async (req, res) => {
   try {
     const session = await PracticeSession.create({
       userId: user._id,
+      questionId: draft.questionId,
       sourceDraftId: draft.draftId,
       sourceFingerprint: draft.fingerprint,
       practiceType: draft.practiceType,
       topic: draft.topic,
       difficulty: draft.difficulty,
       transcript: draft.analysis.transcript,
+      audioUrl: draft.audioUrl || '',
       durationSeconds: draft.durationSeconds,
       speechRateWpm: draft.analysis.speechRateWpm,
       volumeStability: draft.analysis.volumeStability,
       clarityScore: draft.analysis.clarityScore,
       pauseScore: draft.analysis.pauseScore,
       confidenceScore: draft.analysis.confidenceScore,
+      contentScore: draft.analysis.contentScore,
       totalScore: draft.analysis.totalScore,
       fillerWordCount: draft.analysis.fillerWordCount,
       repeatCount: draft.analysis.repeatCount,
@@ -81,12 +84,15 @@ router.post('/sessions', authRequired, async (req, res) => {
       strengths: draft.analysis.strengths,
       improvements: draft.analysis.improvements,
       coachNotes: draft.analysis.coachNotes,
+      sampleAnswer: draft.analysis.sampleAnswer,
+      topics: draft.analysis.topics,
       followUpQuestions: draft.analysis.followUpQuestions,
       speedTimeline: draft.analysis.speedTimeline,
       heatmap: draft.analysis.heatmap,
       passed: draft.passed,
       xpEarned: reward.xpEarned,
-      energyChange: reward.energyChange
+      energyChange: reward.energyChange,
+      language: draft.language || 'vi'
     });
 
     const todayStats = await getTodayPracticeStats(user._id.toString());
@@ -105,6 +111,17 @@ router.post('/sessions', authRequired, async (req, res) => {
 
     throw error;
   }
+});
+
+router.get('/sessions/:id', authRequired, async (req, res) => {
+  const session = await PracticeSession.findOne({ _id: req.params.id, userId: req.user!._id })
+    .populate('questionId');
+
+  if (!session) {
+    return res.status(404).json({ message: 'Không tìm thấy phiên luyện tập.' });
+  }
+
+  return res.json(session);
 });
 
 export default router;

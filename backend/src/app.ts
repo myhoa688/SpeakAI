@@ -6,12 +6,19 @@ import { fileURLToPath } from 'url';
 
 import { env } from './config/env.js';
 import adminRoutes from './routes/adminRoutes.js';
-import adminCourseRoutes from './routes/adminCourseRoutes.js';
+// import adminCourseRoutes from './routes/adminCourseRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import authRoutes from './routes/authRoutes.js';
-import courseRoutes from './routes/courseRoutes.js';
+// import courseRoutes from './routes/courseRoutes.js';
+import interviewRoutes from './routes/interviewRoutes.js';
+import onboardingRoutes from './routes/onboardingRoutes.js';
 import practiceRoutes from './routes/practiceRoutes.js';
+import questionRoutes from './routes/questionRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import interviewSetRoutes from './routes/interviewSetRoutes.js';
+import packageRoutes from './routes/packageRoutes.js';
+import transactionRoutes from './routes/transactionRoutes.js';
+import cvRoutes from './routes/cvRoutes.js';
 
 export const app = express();
 
@@ -65,6 +72,12 @@ app.use(
 app.use(express.json({ limit: '12mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+const uploadsPath = path.resolve(currentDir, '..', '..', 'uploads');
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsPath));
+
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'SpeakAI API' });
 });
@@ -73,9 +86,16 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/practice', practiceRoutes);
 app.use('/api/ai', aiRoutes);
-app.use('/api/courses', courseRoutes);
+// app.use('/api/courses', courseRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/admin/courses', adminCourseRoutes);
+// app.use('/api/admin/courses', adminCourseRoutes);
+app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/questions', questionRoutes);
+app.use('/api/interviews', interviewRoutes);
+app.use('/api/interview-sets', interviewSetRoutes);
+app.use('/api/packages', packageRoutes);
+app.use('/api/transactions', transactionRoutes);
+app.use('/api/cvs', cvRoutes);
 
 if (hasFrontendBuild) {
   app.use(express.static(frontendDistPath));
@@ -90,9 +110,18 @@ if (hasFrontendBuild) {
   });
 }
 
+import { logger } from './config/env.js';
+
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(error);
-  res.status(500).json({
-    message: error instanceof Error ? error.message : 'Da xay ra loi tren server.'
-  });
+  // Log nội bộ với đầy đủ chi tiết
+  logger.error(`Unhandled error: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+
+  // Không expose stack trace ra ngoài
+  const isDev = process.env.NODE_ENV !== 'production';
+  const message = error instanceof Error
+    ? (isDev ? error.message : 'Đã xảy ra lỗi trên server.')
+    : 'Đã xảy ra lỗi trên server.';
+
+  res.status(500).json({ message });
 });
+

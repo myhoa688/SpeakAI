@@ -23,6 +23,13 @@ export interface User {
   bio: string;
   targetRole: string;
   experienceLevel: string;
+  // Onboarding
+  onboardingCompleted: boolean;
+  industryGroup: string;
+  industry: string;
+  specialization: string;
+  favoriteInterviewSets?: string[];
+  //
   skills: string[];
   streak: number;
   longestStreak: number;
@@ -39,7 +46,10 @@ export interface User {
   disabledReason: string;
   isRootAdmin: boolean;
   dailyGoals: DailyGoal[];
+  remainingInterviews: number;
+  planLabel: string;
   createdAt: string;
+  completedAt: string;
 }
 
 export interface PracticeChartPoint {
@@ -82,6 +92,7 @@ export interface PracticeSession extends PracticeAnalysis {
   xpEarned: number;
   energyChange: number;
   createdAt: string;
+  completedAt: string;
 }
 
 export interface LeaderboardEntry {
@@ -197,6 +208,7 @@ export interface AdminCourseSummary {
     order: number;
   }>;
   createdAt: string;
+  completedAt: string;
 }
 
 export interface CourseRequestRecord {
@@ -222,3 +234,29 @@ export interface CourseRequestRecord {
     email: string;
   } | null;
 }
+
+export interface InterviewSet {
+  _id: string;
+  title: string;
+  company: string;
+  industry: string;
+  category: 'technical' | 'behavioral' | 'management' | 'general';
+  difficulty: 'easy' | 'medium' | 'hard';
+  questionCount: number;
+  durationMinutes: number;
+  tags: string[];
+  attemptCount: number;
+  averageScore: number;
+  jobDescription?: string;
+  createdAt: string;
+  completedAt: string;
+}
+
+export interface InterviewSetsStats {
+  totalSets: number;
+  totalAttempts: number;
+  totalQuestions: number;
+  totalCompanies: number;
+  rating: number;
+}
+

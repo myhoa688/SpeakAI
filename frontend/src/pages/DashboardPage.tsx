@@ -1,42 +1,18 @@
-import { ArrowRight, Award, Bot, Clock3, Mic2, Sparkles, Target, TrendingUp, UserRound } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from 'recharts';
-
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Link, useNavigate } from 'react-router-dom';
+import { Video, CheckCircle, Send, BarChart2, Bot, ChevronRight, Search, Clock, Building2, ArrowRight, ChevronDown, Hourglass } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
-import type { DashboardData, DailyGoal } from '../types';
-
-const formatSessionDate = (value: string) =>
-  new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(value));
-
-const formatDifficulty = (difficulty: string) => {
-  if (difficulty === 'easy') return 'Dễ';
-  if (difficulty === 'medium') return 'Trung bình';
-  if (difficulty === 'hard') return 'Khó';
-  return difficulty;
-};
-
-const getGoalProgress = (goal: DailyGoal) => Math.min(100, Math.round((goal.current / goal.target) * 100));
+import type { DashboardData, InterviewSet } from '../types';
+import './DashboardPage.css';
 
 export function DashboardPage() {
-  const { updateUser } = useAuth();
+  const { t } = useTranslation();
+  const { user, updateUser } = useAuth();
+  const navigate = useNavigate();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [featuredSets, setFeaturedSets] = useState<InterviewSet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -45,9 +21,13 @@ export function DashboardPage() {
     setError('');
 
     try {
-      const response = await api.get('/users/dashboard');
+      const [response, featuredRes] = await Promise.all([
+        api.get('/users/dashboard'),
+        api.get('/interview-sets?featured=true&limit=4')
+      ]);
       setDashboard(response.data);
       updateUser(response.data.user);
+      setFeaturedSets(featuredRes.data.sets || []);
     } catch (loadError: any) {
       setError(loadError.response?.data?.message ?? 'Không thể tải dữ liệu tổng quan lúc này.');
     } finally {
@@ -59,333 +39,214 @@ export function DashboardPage() {
     void loadDashboard();
   }, []);
 
-  const handleClaimGoal = async (goalKey: string) => {
-    try {
-      await api.post(`/users/goals/${goalKey}/claim`);
-      await loadDashboard();
-    } catch (claimError: any) {
-      setError(claimError.response?.data?.message ?? 'Không thể nhận thưởng.');
-    }
-  };
-
   if (loading) {
-    return <div className="panel-card">Đang tải dashboard...</div>;
+    return <div style={{ color: 'var(--text-secondary)' }}>Đang tải dashboard...</div>;
   }
 
   if (!dashboard) {
-    return <div className="panel-card error-text">{error || 'Không có dữ liệu tổng quan.'}</div>;
+    return <div style={{ color: 'var(--danger)' }}>{error || 'Không có dữ liệu tổng quan.'}</div>;
   }
 
-  const completedGoals = dashboard.user.dailyGoals.filter((goal) => goal.claimed || goal.completed).length;
-  const openGoals = dashboard.user.dailyGoals.filter((goal) => !goal.claimed).length;
-  const weeklyDelta = `${dashboard.progress.differencePercent >= 0 ? '+' : ''}${dashboard.progress.differencePercent}%`;
-  const topGoal = [...dashboard.user.dailyGoals]
-    .filter((goal) => !goal.claimed)
-    .sort((a, b) => getGoalProgress(b) - getGoalProgress(a))[0] ?? null;
-  const topGoalProgress = topGoal ? getGoalProgress(topGoal) : 100;
   const averageRecentScore = dashboard.recentSessions.length
     ? Math.round(
         dashboard.recentSessions.reduce((total, session) => total + session.totalScore, 0) / dashboard.recentSessions.length
       )
     : 0;
-  const latestSession = dashboard.recentSessions[0] ?? null;
-  const trendLabel =
-    dashboard.progress.trend === 'up'
-      ? 'Đang tăng'
-      : dashboard.progress.trend === 'down'
-        ? 'Giảm nhẹ'
-        : 'Ổn định';
-
-  const bannerStats = [
-    { label: 'Phiên đã lưu', value: dashboard.overview.totalSessions },
-    { label: 'Phút hôm nay', value: dashboard.overview.minutesToday },
-    { label: 'Điểm gần đây', value: `${averageRecentScore}/100` }
-  ];
-
-  const quickActions = [
-    {
-      title: 'Luyện ngay',
-      description: 'Mở phòng thoại hoặc ghi âm một phiên mới.',
-      to: '/practice',
-      icon: Mic2
-    },
-    {
-      title: 'Phân tích CV',
-      description: 'Sinh câu hỏi và lộ trình luyện tập từ hồ sơ.',
-      to: '/cv',
-      icon: Bot
-    },
-    {
-      title: 'Hoàn thiện hồ sơ',
-      description: 'Cập nhật ngữ cảnh để AI cá nhân hóa tốt hơn.',
-      to: '/profile',
-      icon: UserRound
-    }
-  ] as const;
-
-  const snapshotStats = [
-    { label: 'Phút tuần này', value: `${dashboard.progress.thisWeekMinutes} phút` },
-    { label: 'So với tuần trước', value: weeklyDelta },
-    { label: 'Nhịp hiện tại', value: trendLabel }
-  ];
-
-  const commandSummary = topGoal
-    ? `Ưu tiên hôm nay là "${topGoal.title}". Hoàn tất để giữ nhịp luyện tập trong ngày.`
-    : 'Bạn đã hoàn tất toàn bộ mục tiêu ngày. Có thể mở thêm một phiên để tăng chất lượng luyện tập.';
 
   return (
-    <div className="page-stack dashboard-rebuild-shell">
-      {error ? <p className="error-text">{error}</p> : null}
-
-      <section className="panel-card dashboard-rebuild-hero">
-        <div className="dashboard-rebuild-hero-copy">
-          <p className="eyebrow">Bảng điều khiển</p>
-          <h3>Trung tâm luyện tập</h3>
-          <p>{commandSummary}</p>
-
-          <div className="dashboard-rebuild-hero-actions">
-            {quickActions.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link key={item.title} to={item.to} className="dashboard-rebuild-launch">
-                  <span className="dashboard-rebuild-launch-icon">
-                    <Icon size={18} />
-                  </span>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <p>{item.description}</p>
-                  </div>
-                  <ArrowRight size={16} />
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-
-        <aside className="dashboard-rebuild-hero-side">
-          <div className="dashboard-rebuild-focus">
-            <div className="dashboard-rebuild-focus-top">
-              <p className="eyebrow">Mục tiêu hôm nay</p>
-              <span className="badge-soft">
-                <Target size={14} />
-                {completedGoals}/{dashboard.user.dailyGoals.length}
-              </span>
-            </div>
-            <h4>{topGoal ? topGoal.title : 'Đã hoàn tất mọi mục tiêu'}</h4>
-            <div className="priority-progress">
-              <span style={{ width: `${topGoalProgress}%` }} />
-            </div>
-            <div className="dashboard-rebuild-focus-meta">
-              <span>{topGoal ? `${topGoal.current}/${topGoal.target}` : 'Hoàn tất'}</span>
-              <strong>
-                {topGoal ? `+${topGoal.rewardXp} XP${topGoal.rewardEnergy ? ` • +${topGoal.rewardEnergy} NL` : ''}` : 'Đã nhận'}
-              </strong>
-            </div>
-          </div>
-
-          <div className="dashboard-rebuild-statline">
-            {bannerStats.map((item) => (
-              <article key={item.label} className="dashboard-rebuild-stat">
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </article>
-            ))}
-          </div>
-        </aside>
-      </section>
-
-      <section className="dashboard-rebuild-main">
-        <article className="panel-card dashboard-rebuild-missions">
-          <div className="section-heading compact-heading">
+    <div style={{ maxWidth: '1440px', padding: '0 2rem', margin: '0 auto', color: '#fff' }}>
+      <div className="dashboard-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: '2rem', alignItems: 'start' }}>
+        
+        {/* LÊN LEFT COLUMN */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <p className="eyebrow">Mục tiêu ngày</p>
-              <h3>Danh sách cần hoàn thành</h3>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 600, margin: '0 0 0.5rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                Chào mừng trở lại, {user?.name || 'Bạn'}!
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.9rem' }}>
+                Đây là tổng quan về hành trình chuẩn bị phỏng vấn của bạn
+              </p>
             </div>
-            <span className="badge-soft">
-              <Sparkles size={14} />
-              {openGoals} nhiệm vụ mở
-            </span>
           </div>
+        
 
-          <div className="dashboard-rebuild-goal-list">
-            {dashboard.user.dailyGoals.map((goal) => {
-              const progress = getGoalProgress(goal);
-              return (
-                <div key={goal.key} className="dashboard-rebuild-goal-row">
-                  <div className="dashboard-rebuild-goal-copy">
-                    <div className="dashboard-rebuild-goal-head">
-                      <h4>{goal.title}</h4>
-                      <span className={`status-badge ${goal.claimed ? 'dark' : goal.completed ? 'success' : 'pending'}`}>
-                        {goal.claimed ? 'Đã nhận' : goal.completed ? 'Sẵn sàng' : `${goal.current}/${goal.target}`}
-                      </span>
-                    </div>
-                    <p>{goal.description}</p>
-                    <div className="goal-progress-track">
-                      <span style={{ width: `${progress}%` }} />
-                    </div>
-                    <div className="goal-card-meta">
-                      <span className="tag-chip">+{goal.rewardXp} XP</span>
-                      {goal.rewardEnergy > 0 ? <span className="tag-chip">+{goal.rewardEnergy} năng lượng</span> : null}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className={goal.claimed ? 'ghost-button' : 'primary-button'}
-                    disabled={!goal.completed || goal.claimed}
-                    onClick={() => handleClaimGoal(goal.key)}
-                  >
-                    {goal.claimed ? 'Đã nhận' : goal.completed ? 'Nhận thưởng' : 'Đang làm'}
-                  </button>
+          {/* STAT CARDS */}
+          <div className="dashboard-stats-grid">
+            
+            <div className="stat-card-modern">
+              <div className="stat-card-modern-header">
+                <span className="stat-card-title">Tổng số<br/>phỏng vấn</span>
+                <div className="stat-card-icon-wrap" style={{ color: '#6366f1' }}>
+                  <Video size={18} />
                 </div>
-              );
-            })}
-          </div>
-        </article>
-
-        <article className="panel-card dashboard-rebuild-sideboard">
-          <div className="section-heading compact-heading">
-            <div>
-              <p className="eyebrow">Nhìn nhanh</p>
-              <h3>Trạng thái tuần này</h3>
-            </div>
-            <span className="badge-soft">
-              <Award size={14} />
-              {averageRecentScore}/100
-            </span>
-          </div>
-
-          <div className="dashboard-rebuild-snapshot">
-            {snapshotStats.map((item) => (
-              <article key={item.label} className="dashboard-rebuild-snapshot-card">
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </article>
-            ))}
-          </div>
-
-          <div className="dashboard-rebuild-leaderboard">
-            <div className="section-heading compact-heading">
-              <div>
-                <p className="eyebrow">Bảng xếp hạng</p>
-                <h3>Top XP tuần</h3>
               </div>
+              <strong className="stat-card-value">{dashboard.overview.totalSessions}</strong>
+              <div className="stat-card-blob" style={{ background: '#8b5cf6' }}></div>
             </div>
 
-            {dashboard.leaderboard.length ? (
-              <div className="leaderboard-list leaderboard-list-enhanced leaderboard-list-pro">
-                {dashboard.leaderboard.map((entry) => (
-                  <div key={entry.id} className="leaderboard-row leaderboard-row-enhanced leaderboard-row-compact leaderboard-row-elite">
-                    <strong>#{entry.rank}</strong>
+            <div className="stat-card-modern">
+              <div className="stat-card-modern-header">
+                <span className="stat-card-title">Phỏng vấn<br/>đã hoàn thành</span>
+                <div className="stat-card-icon-wrap" style={{ color: '#10b981' }}>
+                  <CheckCircle size={18} />
+                </div>
+              </div>
+              <strong className="stat-card-value">{dashboard.overview.totalSessions}</strong>
+              <div className="stat-card-blob" style={{ background: '#10b981' }}></div>
+            </div>
+
+            <div className="stat-card-modern">
+              <div className="stat-card-modern-header">
+                <span className="stat-card-title">Đơn ứng tuyển<br/>đã gửi</span>
+                <div className="stat-card-icon-wrap" style={{ color: '#3b82f6' }}>
+                  <Send size={18} />
+                </div>
+              </div>
+              <strong className="stat-card-value">0</strong>
+              <div className="stat-card-blob" style={{ background: '#3b82f6' }}></div>
+            </div>
+
+            <div className="stat-card-modern">
+              <div className="stat-card-modern-header">
+                <span className="stat-card-title">Điểm<br/>trung bình</span>
+                <div className="stat-card-icon-wrap" style={{ color: '#f59e0b' }}>
+                  <BarChart2 size={18} />
+                </div>
+              </div>
+              <strong className="stat-card-value">{averageRecentScore}%</strong>
+              <div className="stat-card-blob" style={{ background: '#f59e0b' }}></div>
+            </div>
+
+          </div>
+
+          {/* ACTIVITY SECTION */}
+          <div className="dashboard-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ position: 'relative' }}>
+              <input 
+                type="text" 
+                placeholder="Tìm kiếm câu hỏi, việc làm hoặc tài nguyên..."
+                style={{ width: '100%', padding: '0.8rem 1rem 0.8rem 2.5rem', borderRadius: '8px', border: '1px solid var(--border)', background: '#121316', color: '#fff' }}
+              />
+              <Search size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: '12px', top: '15px' }} />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button style={{ padding: '0.5rem 1rem', background: '#121316', border: '1px solid var(--border)', borderRadius: '100px', color: '#fff', fontSize: '0.85rem' }}>
+                Tất cả danh mục <ChevronDown size={14} style={{ display: 'inline', verticalAlign: 'middle', marginLeft: '4px' }} />
+              </button>
+              <button style={{ padding: '0.5rem 1rem', background: '#121316', border: '1px solid var(--border)', borderRadius: '100px', color: '#fff', fontSize: '0.85rem' }}>
+                Độ khó: Bất kỳ <ChevronDown size={14} style={{ display: 'inline', verticalAlign: 'middle', marginLeft: '4px' }} />
+              </button>
+            </div>
+          </div>
+
+          {/* HOẠT ĐỘNG GẦN ĐÂY -> LỊCH SỬ PHỎNG VẤN */}
+          <div className="dashboard-panel" style={{ padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Lịch sử phỏng vấn</h3>
+              <Link to="/interview/history" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>Xem tất cả</Link>
+            </div>
+            
+            {dashboard.recentSessions.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-secondary)' }}>
+                <Hourglass size={32} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+                <p style={{ margin: 0, fontSize: '0.9rem' }}>Chưa có lịch sử phỏng vấn nào</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {dashboard.recentSessions.slice(0, 3).map((session, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                     <div>
-                      <p>{entry.name}</p>
-                      <span>{entry.targetRole || 'Chưa cập nhật vai trò'}</span>
+                      <div style={{ fontWeight: 500, marginBottom: '0.25rem', fontSize: '0.95rem' }}>{session.topic || 'Phiên phỏng vấn'}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        {new Date(session.completedAt).toLocaleDateString('vi-VN')}
+                      </div>
                     </div>
-                    <div className="leaderboard-meta">
-                      <span>{entry.weeklyXp} XP</span>
-                      <span>{entry.streak} ngày</span>
+                    <div style={{ padding: '0.25rem 0.75rem', background: 'rgba(16,185,129,0.1)', color: 'var(--success)', borderRadius: '100px', fontSize: '0.8rem', fontWeight: 600 }}>
+                      {session.totalScore} Điểm
                     </div>
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="muted-text">Chưa có dữ liệu xếp hạng.</p>
             )}
           </div>
-        </article>
-      </section>
-
-      <section className="panel-card dashboard-rebuild-analytics">
-        <div className="dashboard-rebuild-analytics-head">
-          <div className="section-heading compact-heading">
-            <div>
-              <p className="eyebrow">Phân tích tuần</p>
-              <h3>Tiến độ và chất lượng luyện tập</h3>
-            </div>
-            <span className="badge-soft">
-              <TrendingUp size={14} />
-              {weeklyDelta}
-            </span>
-          </div>
-
-          <div className="dashboard-rebuild-analytics-note">
-            <span>Phiên gần nhất</span>
-            <strong>{latestSession ? latestSession.topic : 'Chưa có phiên nào'}</strong>
-          </div>
         </div>
 
-        <div className="dashboard-rebuild-chart-grid">
-          <article className="dashboard-rebuild-chart-card">
-            <p className="eyebrow">Thời lượng 7 ngày</p>
-            <div className="chart-wrap">
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={dashboard.weeklyTimeline}>
-                  <defs>
-                    <linearGradient id="minutesFill" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#34d6ff" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#34d6ff" stopOpacity={0.06} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="#d9e7f4" strokeDasharray="4 4" />
-                  <XAxis dataKey="day" stroke="#526477" />
-                  <YAxis stroke="#526477" />
-                  <Tooltip />
-                  <Area type="monotone" dataKey="minutes" stroke="#34d6ff" fill="url(#minutesFill)" strokeWidth={3} />
-                </AreaChart>
-              </ResponsiveContainer>
+        {/* RIGHT COLUMN */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* HERO BANNER */}
+          <div className="mock-cta-card">
+            <div className="mock-cta-content">
+              <div className="mock-cta-icon-box">
+                <Video size={24} color="#ffffff" strokeWidth={1.5} />
+              </div>
+              <h3 className="mock-cta-title">
+                Giả lập phỏng vấn thực tế
+              </h3>
+              <p className="mock-cta-desc">
+                Trải nghiệm buổi phỏng vấn hoàn chỉnh với AI. Thực hành trả lời câu hỏi, nhận phản hồi chi tiết và tự tin hơn khi đi phỏng vấn thật.
+              </p>
+              <button 
+              className="mock-cta-button"
+              onClick={() => navigate('/interview')}
+              style={{ position: 'relative' }}
+            >
+              <span style={{ margin: '0 auto' }}>Bắt đầu ngay</span>
+              <ArrowRight size={18} style={{ position: 'absolute', right: '1.5rem' }} />
+            </button>
             </div>
-          </article>
-
-          <article className="dashboard-rebuild-chart-card">
-            <p className="eyebrow">XP theo ngày</p>
-            <div className="chart-wrap">
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={dashboard.weeklyTimeline}>
-                  <CartesianGrid stroke="#d9e7f4" strokeDasharray="4 4" />
-                  <XAxis dataKey="day" stroke="#526477" />
-                  <YAxis stroke="#526477" />
-                  <Tooltip />
-                  <Bar dataKey="xp" fill="#7b61ff" radius={[10, 10, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="mock-cta-watermark">
+              <Bot size={180} color="#ffffff" strokeWidth={1.5} />
             </div>
-          </article>
-        </div>
-      </section>
-
-      <section className="panel-card dashboard-rebuild-history">
-        <div className="section-heading compact-heading">
-          <div>
-            <p className="eyebrow">Phiên gần đây</p>
-            <h3>Lịch sử luyện tập</h3>
           </div>
-        </div>
 
-        <div className="dashboard-rebuild-history-list">
-          {dashboard.recentSessions.length ? (
-            dashboard.recentSessions.map((session) => (
-              <article key={session.id} className="dashboard-rebuild-history-item">
-                <div className="dashboard-rebuild-history-main">
-                  <div className="session-card-tags">
-                    <span className="tag-chip">{session.practiceType === 'presentation' ? 'Thuyết trình' : 'Phỏng vấn'}</span>
-                    <span className="tag-chip">{formatDifficulty(session.difficulty)}</span>
-                    <span className="tag-chip">{Math.round(session.durationSeconds)} giây</span>
+          {/* GỢI Ý VIỆC LÀM */}
+          <div className="dashboard-panel" style={{ padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Building2 size={18} /> Việc làm gợi ý
+              </h3>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>Xem tất cả</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ padding: '1rem', background: '#121316', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <div style={{ width: '40px', height: '40px', background: '#fff', borderRadius: '6px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: '#ef4444', fontWeight: 800, fontSize: '1.2rem' }}>E</span>
+                </div>
+                <div style={{ flexGrow: 1 }}>
+                  <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.95rem' }}>Luật sư cộng sự</h4>
+                  <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Công Ty Luật TNHH Everest • Hà Nội</p>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'rgba(16,185,129,0.1)', color: 'var(--success)', borderRadius: '4px' }}>Thỏa thuận</span>
+                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', borderRadius: '4px' }}>Từ xa</span>
                   </div>
-                  <h4>{session.topic}</h4>
-                  <p>{formatSessionDate(session.createdAt)}</p>
                 </div>
+                <ChevronRight size={16} color="var(--text-secondary)" />
+              </div>
 
-                <div className="dashboard-rebuild-history-side">
-                  <strong>{session.totalScore}/100</strong>
-                  <span>+{session.xpEarned} XP</span>
+              <div style={{ padding: '1rem', background: '#121316', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <div style={{ width: '40px', height: '40px', background: '#fff', borderRadius: '6px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: '#ef4444', fontWeight: 800, fontSize: '1.2rem' }}>E</span>
                 </div>
-              </article>
-            ))
-          ) : (
-            <p className="muted-text">Chưa có phiên luyện nào được lưu.</p>
-          )}
+                <div style={{ flexGrow: 1 }}>
+                  <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.95rem' }}>Trợ lý Luật sư</h4>
+                  <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Công Ty Luật TNHH Everest • Hà Nội</p>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'rgba(16,185,129,0.1)', color: 'var(--success)', borderRadius: '4px' }}>Thỏa thuận</span>
+                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', borderRadius: '4px' }}>Từ xa</span>
+                  </div>
+                </div>
+                <ChevronRight size={16} color="var(--text-secondary)" />
+              </div>
+            </div>
+          </div>
+
         </div>
-      </section>
+      </div>
     </div>
   );
 }

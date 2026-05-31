@@ -25,6 +25,11 @@ const userSchema = new Schema(
     bio: { type: String, default: '' },
     targetRole: { type: String, default: '' },
     experienceLevel: { type: String, default: 'beginner' },
+    // Onboarding fields
+    onboardingCompleted: { type: Boolean, default: false },
+    industryGroup: { type: String, default: '' },
+    industry: { type: String, default: '' },
+    specialization: { type: String, default: '' },
     skills: { type: [String], default: [] },
     streak: { type: Number, default: 0 },
     longestStreak: { type: Number, default: 0 },
@@ -42,7 +47,10 @@ const userSchema = new Schema(
     disabledReason: { type: String, default: '' },
     disabledByEmail: { type: String, default: '' },
     dailyGoalDate: { type: String, default: '' },
-    dailyGoals: { type: [dailyGoalSchema], default: [] }
+    dailyGoals: { type: [dailyGoalSchema], default: [] },
+    favoriteInterviewSets: [{ type: Schema.Types.ObjectId, ref: 'InterviewSet' }],
+    remainingInterviews: { type: Number, default: 2 },
+    planLabel: { type: String, default: 'Miễn phí' }
   },
   {
     timestamps: true

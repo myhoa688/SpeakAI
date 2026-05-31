@@ -17,6 +17,10 @@ export function ProtectedRoute({ adminOnly = false }: ProtectedRouteProps) {
     return <Navigate to="/login" replace />;
   }
 
+  if (!user.onboardingCompleted && user.role !== 'admin' && !user.isRootAdmin) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
   if (adminOnly && user.role !== 'admin') {
     return <Navigate to="/dashboard" replace />;
   }

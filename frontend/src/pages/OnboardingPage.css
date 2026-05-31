@@ -1,0 +1,52 @@
+/* OnboardingPage.css */
+.xi-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+.xi-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 1;
+  gap: 0.2rem;
+}
+.xi-step-circle {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  background: #11253f;
+  border: 2px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  transition: all var(--transition-normal);
+}
+.xi-step.active .xi-step-circle {
+  border-color: var(--color-primary);
+  background: #1a3253;
+  color: #fff;
+}
+.xi-step.completed .xi-step-circle {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+.xi-step-line {
+  position: absolute;
+  top: 0.9rem;
+  left: 2rem;
+  right: 2rem;
+  height: 2px;
+  background: var(--color-border);
+  z-index: 0;
+}
+.xi-step-line-progress {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.3s ease;
+}

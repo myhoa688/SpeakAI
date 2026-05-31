@@ -1,4 +1,4 @@
-﻿import { CheckCircle2, KeyRound, Mail, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, KeyRound, Mail, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -32,7 +32,7 @@ export function ForgotPasswordPage() {
       const response = await api.post('/auth/forgot-password/request', { email });
       setDebugCode(response.data.debugCode ?? '');
       setStatusMessage(
-        response.data.deliveryMode === 'console'
+        response.data.deliveryMode === 'dev'
           ? 'SMTP chưa được cấu hình. Hệ thống đang trả mã OTP ở chế độ debug để bạn kiểm thử.'
           : 'Mã OTP đã được gửi qua email. Vui lòng kiểm tra hộp thư của bạn.'
       );

@@ -1,11 +1,9 @@
-import OpenAI from 'openai';
 import pdfParse from 'pdf-parse';
-import { zodTextFormat } from 'openai/helpers/zod';
+import mammoth from 'mammoth';
 import { z } from 'zod';
 
-import { env } from '../config/env.js';
-
-const openai = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey }) : null;
+import { env, logger } from '../config/env.js';
+import { aiClient } from '../config/ai.js';
 
 const cvAnalysisSchema = z.object({
   summary: z.string(),
@@ -25,10 +23,22 @@ const cvAnalysisSchema = z.object({
 
 const practiceFeedbackSchema = z.object({
   summary: z.string(),
-  strengths: z.array(z.string()).min(3).max(5),
-  improvements: z.array(z.string()).min(3).max(6),
-  coachNotes: z.array(z.string()).min(3).max(6),
-  followUpQuestions: z.array(z.string()).min(2).max(5)
+  strengths: z.array(z.string()),
+  improvements: z.array(z.string()),
+  coachNotes: z.array(z.string()),
+  followUpQuestions: z.array(z.string()),
+  sampleAnswer: z.string().optional(),
+  topics: z.array(z.string()).optional(),
+  contentScore: z.number().optional()
+});
+
+const overallFeedbackSchema = z.object({
+  summary: z.string(),
+  strengths: z.array(z.string()),
+  improvements: z.array(z.string()),
+  recommendedModels: z.array(z.string()),
+  matchedKeywords: z.array(z.string()),
+  missingKeywords: z.array(z.string())
 });
 
 const nextQuestionSchema = z.object({
@@ -37,6 +47,21 @@ const nextQuestionSchema = z.object({
   reason: z.string(),
   challenge: z.string(),
   suggestedFocus: z.array(z.string()).min(2).max(4)
+});
+
+const questionAnalysisSchema = z.object({
+  interviewerEvaluation: z.array(z.string()),
+  answerStructure: z.object({
+    open: z.string(),
+    points: z.array(z.string()),
+    close: z.string()
+  }),
+  importantTips: z.array(z.object({
+    priority: z.enum(['HIGH', 'MEDIUM', 'LOW']),
+    content: z.string()
+  })),
+  followUpQuestions: z.array(z.string()),
+  commonMistakes: z.array(z.string())
 });
 
 const fillerTerms = ['ừ', 'ờ', 'ừm', 'kiểu như', 'nói chung', 'thực ra', 'actually', 'basically'];
@@ -77,6 +102,9 @@ type PracticeAnalysisResult = {
   coachNotes: string[];
   followUpQuestions: string[];
   warningMessage?: string;
+  sampleAnswer?: string;
+  topics?: string[];
+  contentScore?: number;
 };
 
 const clamp = (value: number, min = 0, max = 100) => Math.min(max, Math.max(min, Math.round(value)));
@@ -1145,9 +1173,16 @@ const buildCvPromptContext = (resumeText: string, targetRole: string) => {
 };
 
 export const extractResumeText = async (file: UploadFile) => {
-  if (file.mimetype.includes('pdf') || file.originalname.toLowerCase().endsWith('.pdf')) {
+  const ext = file.originalname.toLowerCase();
+  
+  if (file.mimetype.includes('pdf') || ext.endsWith('.pdf')) {
     const parsed = await pdfParse(file.buffer);
     return normalizeText(parsed.text);
+  }
+
+  if (ext.endsWith('.docx') || file.mimetype.includes('wordprocessingml')) {
+    const result = await mammoth.extractRawText({ buffer: file.buffer });
+    return normalizeText(result.value);
   }
 
   return file.buffer.toString('utf-8').trim();
@@ -1156,38 +1191,39 @@ export const extractResumeText = async (file: UploadFile) => {
 export const analyzeCv = async (input: { resumeText: string; targetRole: string }) => {
   const fallback = buildFallbackCvAnalysisV2(input.resumeText, input.targetRole);
 
-  if (!openai) {
+  if (!aiClient) {
     return {
       ...fallback,
-      warningMessage: 'SpeakAI chưa được cấu hình kết nối OpenAI nên đang dùng bản phân tích CV dự phòng.'
+      warningMessage: 'AI service (Groq) chưa được cấu hình — đang dùng bản phân tích CV dự phòng.'
     };
   }
 
   try {
-    const response = await openai.responses.parse({
+    const response = await aiClient.chat.completions.create({
       model: env.openaiTextModel,
-      input: [
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+      messages: [
         {
           role: 'system',
           content:
-            'Bạn là chuyên gia tối ưu CV và luyện phỏng vấn. Hãy phân tích thật sát nội dung CV, không bịa kinh nghiệm, luôn trả lời bằng tiếng Việt có dấu tự nhiên, chuyên nghiệp, cụ thể và dễ áp dụng. Nếu CV thiếu dữ liệu, phải chỉ rõ phần còn thiếu.'
+            'Bạn là chuyên gia tối ưu CV và luyện phỏng vấn. Hãy phân tích thật sát nội dung CV, không bịa kinh nghiệm, luôn trả lời bằng tiếng Việt có dấu tự nhiên, chuyên nghiệp, cụ thể và dễ áp dụng. Nếu CV thiếu dữ liệu, phải chỉ rõ phần còn thiếu.\n\nTrả về JSON với đúng cấu trúc: { summary: string, strengths: string[], improvements: string[], interviewQuestions: {question:string, purpose:string}[], practicePlan: string[] }'
         },
         {
           role: 'user',
-          content: `Vị trí mục tiêu: ${normalizeText(input.targetRole) || 'Chưa cung cấp'}\n\nNội dung CV:\n${input.resumeText.slice(0, 12000)}`
-        },
-        {
-          role: 'user',
-          content: buildCvPromptContextV2(input.resumeText, input.targetRole)
+          content:
+            `Vị trí mục tiêu: ${normalizeText(input.targetRole) || 'Chưa cung cấp'}\n\nNội dung CV:\n${input.resumeText.slice(0, 8000)}\n\n${buildCvPromptContextV2(input.resumeText, input.targetRole)}`
         }
-      ],
-      text: {
-        format: zodTextFormat(cvAnalysisSchema, 'cv_analysis')
-      }
+      ]
     });
 
-    return normalizeCvAnalysisOutput(response.output_parsed, fallback);
+    const raw = response.choices[0]?.message?.content ?? '{}';
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+
+    return normalizeCvAnalysisOutput(parsed, fallback);
   } catch (error) {
+    logger.error(`[analyzeCv] ${error instanceof Error ? error.message : String(error)}`);
     return {
       ...fallback,
       warningMessage: normalizeProviderError(error, 'cv')
@@ -1196,7 +1232,7 @@ export const analyzeCv = async (input: { resumeText: string; targetRole: string 
 };
 
 const transcribeAudio = async (audio: UploadFile) => {
-  if (!openai) {
+  if (!aiClient) {
     return '';
   }
 
@@ -1204,7 +1240,8 @@ const transcribeAudio = async (audio: UploadFile) => {
     type: audio.mimetype || 'audio/webm'
   });
 
-  const transcript = await openai.audio.transcriptions.create({
+  // Groq Whisper-large-v3 — API tương thích OpenAI
+  const transcript = await aiClient.audio.transcriptions.create({
     file,
     model: env.openaiTranscribeModel,
     language: 'vi',
@@ -1216,12 +1253,12 @@ const transcribeAudio = async (audio: UploadFile) => {
   return String(transcript ?? '');
 };
 
-const transcribeAudioSafely = async (audio?: UploadFile) => {
+export const transcribeAudioSafely = async (audio?: UploadFile) => {
   if (!audio) {
     return { transcript: '', warningMessage: '' };
   }
 
-  if (!openai) {
+  if (!aiClient) {
     return {
       transcript: '',
       warningMessage:
@@ -1234,9 +1271,23 @@ const transcribeAudioSafely = async (audio?: UploadFile) => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const transcript = await transcribeAudio(audio);
+      let transcriptText = normalizeText(transcript);
+      
+      // Filter out common Whisper hallucinations for silent audio
+      const lowerText = transcriptText.toLowerCase();
+      if (
+        lowerText.includes('tôi là gpt') || 
+        lowerText.includes('cảm ơn các bạn đã theo dõi') ||
+        lowerText.includes('amara.org') ||
+        lowerText.includes('subtitles by') ||
+        lowerText.includes('bài thuyết trình hoặc câu trả lời')
+      ) {
+        transcriptText = ''; // Consider it silent
+      }
+
       return {
-        transcript: normalizeText(transcript),
-        warningMessage: ''
+        transcript: transcriptText,
+        warningMessage: transcriptText === '' ? 'Không phát hiện được giọng nói rõ ràng. Hãy đảm bảo micro của bạn hoạt động tốt.' : ''
       };
     } catch (error) {
       lastError = error;
@@ -1408,7 +1459,7 @@ const buildMetricScores = (
       structureScore * 0.1 +
       specificityScore * 0.14
   );
-  const totalScore = clamp(
+  let totalScore = clamp(
     volumeStability * 0.16 +
       clarityScore * 0.22 +
       pauseScore * 0.14 +
@@ -1417,6 +1468,15 @@ const buildMetricScores = (
       structureScore * 0.08 +
       specificityScore * 0.14
   );
+
+  if (context?.practiceType === 'interview') {
+    if (wordCount < 10 || topicCoverage < 0.25) {
+      // If the answer is extremely short or off-topic, penalize the score heavily
+      totalScore = clamp(totalScore * 0.35);
+    } else if (topicCoverage < 0.4) {
+      totalScore = clamp(totalScore * 0.6);
+    }
+  }
 
   const chunks = 6;
   const wordChunks = splitWordsIntoChunks(words, chunks);
@@ -1991,38 +2051,40 @@ const buildSmartFallbackPracticeFeedback = (input: {
     improvements.push('Bài nói còn thiếu ví dụ, kết quả hoặc tình huống cụ thể để tăng độ thuyết phục.');
   }
 
-  if (input.speechRateWpm >= 110 && input.speechRateWpm <= 155) {
-    strengths.push('Tốc độ nói đang ở mức dễ nghe và đủ nhịp để người nghe theo kịp.');
-  } else if (input.speechRateWpm > 155) {
-    improvements.push('Tốc độ nói đang khá nhanh, nên chèn thêm điểm dừng sau mỗi ý chính.');
-  } else {
-    improvements.push('Tốc độ nói đang hơi chậm, nên vào thẳng ý chính sớm hơn để giữ nhịp.');
-  }
+  if (input.transcriptAvailable) {
+    if (input.speechRateWpm >= 110 && input.speechRateWpm <= 155) {
+      strengths.push('Tốc độ nói đang ở mức dễ nghe và đủ nhịp để người nghe theo kịp.');
+    } else if (input.speechRateWpm > 155) {
+      improvements.push('Tốc độ nói đang khá nhanh, nên chèn thêm điểm dừng sau mỗi ý chính.');
+    } else {
+      improvements.push('Tốc độ nói đang hơi chậm, nên vào thẳng ý chính sớm hơn để giữ nhịp.');
+    }
 
-  if (input.volumeStability >= 68) {
-    strengths.push('Âm lượng khá ổn định trong suốt phần trình bày.');
-  } else {
-    improvements.push('Âm lượng chưa đều, nên giữ khoảng cách micro ổn định hơn.');
-  }
+    if (input.volumeStability >= 68) {
+      strengths.push('Âm lượng khá ổn định trong suốt phần trình bày.');
+    } else {
+      improvements.push('Âm lượng chưa đều, nên giữ khoảng cách micro ổn định hơn.');
+    }
 
-  if (input.clarityScore >= 70) {
-    strengths.push('Độ rõ phát âm khá tốt và ý nói tương đối sáng.');
-  } else {
-    improvements.push('Cần nói dứt ý hơn và giảm các cụm rườm rà để nội dung rõ hơn.');
-  }
+    if (input.clarityScore >= 70) {
+      strengths.push('Độ rõ phát âm khá tốt và ý nói tương đối sáng.');
+    } else {
+      improvements.push('Cần nói dứt ý hơn và giảm các cụm rườm rà để nội dung rõ hơn.');
+    }
 
-  if (input.pauseScore >= 65) {
-    strengths.push('Khoảng dừng khá hợp lý, giúp chia nhịp bài nói tốt hơn.');
-  } else {
-    improvements.push('Khoảng dừng chưa tối ưu, nên dừng ngắn trước ý quan trọng thay vì ngắt giữa câu.');
-  }
+    if (input.pauseScore >= 65) {
+      strengths.push('Khoảng dừng khá hợp lý, giúp chia nhịp bài nói tốt hơn.');
+    } else {
+      improvements.push('Khoảng dừng chưa tối ưu, nên dừng ngắn trước ý quan trọng thay vì ngắt giữa câu.');
+    }
 
-  if (input.fillerWordCount > 4) {
-    improvements.push('Số từ đệm còn hơi nhiều, nên thay bằng khoảng dừng ngắn và câu ngắn hơn.');
-  }
+    if (input.fillerWordCount > 4) {
+      improvements.push('Số từ đệm còn hơi nhiều, nên thay bằng khoảng dừng ngắn và câu ngắn hơn.');
+    }
 
-  if (input.repeatCount > 3) {
-    improvements.push('Nội dung có dấu hiệu lặp ý, nên chốt trước 3 ý chính rồi mới bắt đầu nói.');
+    if (input.repeatCount > 3) {
+      improvements.push('Nội dung có dấu hiệu lặp ý, nên chốt trước 3 ý chính rồi mới bắt đầu nói.');
+    }
   }
 
   if (input.confidenceScore < 60) {
@@ -2064,8 +2126,8 @@ const buildSmartFallbackPracticeFeedback = (input: {
   }
 
   if (!input.transcriptAvailable) {
-    strengths.unshift('SpeakAI vẫn đo được nhịp nói, âm lượng và khoảng dừng trực tiếp từ file ghi âm.');
-    improvements.unshift('Chưa chép được transcript nên kết quả hiện tại chưa đi sâu vào cách dùng từ và độ mạch lạc nội dung.');
+    strengths = ['File ghi âm quá ngắn hoặc ồn, không thể phân tích nội dung.'];
+    improvements = ['Cần ghi âm lại rõ ràng hơn hoặc dán trực tiếp câu trả lời vào phần transcript.'];
     coachNotes.unshift('Hãy dán transcript hoặc thử phân tích lại khi mạng ổn định hơn để nhận góp ý đầy đủ hơn.');
   }
 
@@ -2104,13 +2166,13 @@ const buildSmartFallbackPracticeFeedback = (input: {
     speedTimeline: [],
     heatmap: [],
     summary,
-    strengths: mergeUniqueTexts(strengths, ['Bài nói đã có đủ dữ liệu nền để tiếp tục luyện sâu hơn.'], 4),
-    improvements: mergeUniqueTexts(improvements, ['Hãy luyện thêm một lượt ngắn và nghe lại để chốt đúng điểm cần sửa.'], 5),
-    coachNotes: mergeUniqueTexts(
+    strengths: input.transcriptAvailable ? mergeUniqueTexts(strengths, ['Bài nói đã có đủ dữ liệu nền để tiếp tục luyện sâu hơn.'], 4) : strengths,
+    improvements: input.transcriptAvailable ? mergeUniqueTexts(improvements, ['Hãy luyện thêm một lượt ngắn và nghe lại để chốt đúng điểm cần sửa.'], 5) : improvements,
+    coachNotes: input.transcriptAvailable ? mergeUniqueTexts(
       coachNotes,
       ['Luyện với đồng hồ 60-90 giây để giữ câu trả lời ngắn gọn và có trọng tâm.'],
       5
-    ),
+    ) : coachNotes,
     followUpQuestions: buildSmartContextualFollowUpQuestions({
       practiceType: input.practiceType,
       topic: input.topic,
@@ -2137,6 +2199,7 @@ const buildPracticePromptContextV2 = (input: {
   repeatCount: number;
   targetRole?: string;
   profileSummary?: string;
+  questionContext?: string;
 }) => {
   const signals = buildPracticeContentSignalsV2(input.transcript, input.topic, input.practiceType, input.targetRole ?? '');
 
@@ -2159,11 +2222,15 @@ const buildPracticePromptContextV2 = (input: {
     `Điểm tự tin: ${input.confidenceScore}`,
     `Số từ đệm: ${input.fillerWordCount}`,
     `Số lần lặp ý: ${input.repeatCount}`,
+    input.questionContext ? `Yêu cầu bổ sung của câu hỏi:\n${input.questionContext}\n\n` : '',
     'Yêu cầu bắt buộc:',
     '- Summary phải nêu đúng người nói đang làm tốt hay chưa tốt ở ý nào trong transcript.',
     '- Strengths và improvements phải bám vào nội dung thực sự đã nói, không được viết nhận xét chung chung.',
     '- Coach notes phải chỉ ra bước sửa cụ thể cho lượt nói tiếp theo.',
-    '- Follow-up questions phải nối tiếp đúng chủ đề, đúng transcript và không lạc sang ý không có trong bài nói.'
+    '- Follow-up questions phải nối tiếp đúng chủ đề, đúng transcript và không lạc sang ý không có trong bài nói.',
+    input.questionContext ? '- Phải chấm điểm contentScore (0-100) dựa trên việc ứng viên có nói đúng và đủ các "Yêu cầu bổ sung của câu hỏi" hay không.' : '',
+    input.questionContext ? '- Phải gợi ý một sampleAnswer (Câu trả lời mẫu) hoàn chỉnh, cá nhân hóa dựa trên transcript của ứng viên nhưng khắc phục các điểm yếu và tuân thủ các "Yêu cầu bổ sung".' : '',
+    '- Phải liệt kê tối đa 3 chủ đề (topics) đã được người nói đề cập trong transcript.'
   ].join('\n');
 };
 
@@ -2242,6 +2309,9 @@ const normalizePracticeFeedbackOutput = (
       fallback.coachNotes,
       6
     ),
+    sampleAnswer: isUsableText(parsed.sampleAnswer) ? normalizeText(parsed.sampleAnswer) : fallback.sampleAnswer || '',
+    topics: Array.isArray(parsed.topics) ? parsed.topics.map((item) => normalizeText(item)).filter(Boolean) : fallback.topics || [],
+    contentScore: typeof parsed.contentScore === 'number' ? parsed.contentScore : fallback.contentScore || 0,
     followUpQuestions: mergeUniqueTexts(
       Array.isArray(parsed.followUpQuestions) ? parsed.followUpQuestions.map((item) => normalizeText(item)) : [],
       buildSmartContextualFollowUpQuestions(context),
@@ -2260,6 +2330,9 @@ export const analyzePractice = async (input: {
   audioFile?: UploadFile;
   targetRole?: string;
   profileSummary?: string;
+  language?: string;
+  questionContext?: string;
+  questionId?: string;
 }) => {
   const manualTranscript = normalizeText(input.transcript);
   const transcription = manualTranscript
@@ -2292,11 +2365,20 @@ export const analyzePractice = async (input: {
     targetRole: input.targetRole
   });
 
-  if (!openai || !hasTranscript) {
+  if (!aiClient || !hasTranscript) {
+    const isSilent = transcription.warningMessage.includes('Không phát hiện được');
+    
     return {
       ...metrics,
       ...fallback,
-      totalScore: metrics.totalScore,
+      totalScore: isSilent ? 0 : metrics.totalScore,
+      contentScore: isSilent ? 0 : (fallback.contentScore || 0),
+      clarityScore: isSilent ? 0 : metrics.clarityScore,
+      confidenceScore: isSilent ? 0 : metrics.confidenceScore,
+      speechRateWpm: isSilent ? 0 : metrics.speechRateWpm,
+      pauseScore: isSilent ? 0 : metrics.pauseScore,
+      sampleAnswer: fallback.sampleAnswer || '',
+      topics: fallback.topics || [],
       speedTimeline: metrics.speedTimeline,
       heatmap: metrics.heatmap,
       warningMessage: transcription.warningMessage
@@ -2304,13 +2386,36 @@ export const analyzePractice = async (input: {
   }
 
   try {
-    const response = await openai.responses.parse({
+    const contextPrompt = buildPracticePromptContextV2({
+      practiceType: input.practiceType,
+      difficulty: input.difficulty,
+      topic: input.topic,
+      transcript: metrics.transcript,
+      speechRateWpm: metrics.speechRateWpm,
+      volumeStability: metrics.volumeStability,
+      clarityScore: metrics.clarityScore,
+      pauseScore: metrics.pauseScore,
+      confidenceScore: metrics.confidenceScore,
+      fillerWordCount: metrics.fillerWordCount,
+      repeatCount: metrics.repeatCount,
+      targetRole: input.targetRole,
+      profileSummary: input.profileSummary,
+      questionContext: input.questionContext
+    });
+
+    const response = await aiClient.chat.completions.create({
       model: env.openaiTextModel,
-      input: [
+      temperature: 0.4,
+      response_format: { type: 'json_object' },
+      messages: [
         {
           role: 'system',
           content:
-            'Bạn là AI coach giúp luyện thuyết trình và phỏng vấn bằng tiếng Việt. Hãy nhận xét bám sát transcript và các chỉ số đã cho, không bịa nội dung chưa xuất hiện, không nói lan man, luôn đưa góp ý cụ thể và có thể áp dụng ngay.'
+            `Bạn là AI coach giúp luyện thuyết trình và phỏng vấn. Hãy nhận xét bám sát transcript, không bịa nội dung, đưa góp ý cụ thể.\n\n` +
+            `Mục tiêu: Đóng vai một chuyên gia giao tiếp và phỏng vấn để nhận xét khách quan.\n` +
+            `QUAN TRỌNG: Bạn BẮT BUỘC phải đưa ra phản hồi bằng ngôn ngữ: ${input.language || 'vi'}.\n` +
+            `Dù nội dung của ứng viên là ngôn ngữ gì, tất cả các trường summary, strengths, improvements, coachNotes, followUpQuestions, sampleAnswer, topics ĐỀU PHẢI được dịch và viết bằng ${input.language || 'vi'}.\n\n` +
+            `Trả về JSON: { summary: string, strengths: string[], improvements: string[], coachNotes: string[], followUpQuestions: string[], sampleAnswer?: string, topics?: string[], contentScore?: number }`
         },
         {
           role: 'user',
@@ -2318,40 +2423,16 @@ export const analyzePractice = async (input: {
             `Loại luyện tập: ${input.practiceType === 'presentation' ? 'Thuyết trình' : 'Phỏng vấn'}\n` +
             `Chủ đề: ${normalizeText(input.topic) || 'Luyện tập SpeakAI'}\n` +
             `Transcript: ${metrics.transcript}\n` +
-            `Tốc độ nói (WPM): ${metrics.speechRateWpm}\n` +
-            `Độ ổn định âm lượng: ${metrics.volumeStability}\n` +
-            `Độ rõ phát âm: ${metrics.clarityScore}\n` +
-            `Điểm khoảng dừng: ${metrics.pauseScore}\n` +
-            `Điểm tự tin: ${metrics.confidenceScore}\n` +
-            `Số từ đệm: ${metrics.fillerWordCount}\n` +
-            `Số lần lặp ý: ${metrics.repeatCount}\n` +
-            'Yêu cầu đặc biệt: phần follow-up phải bám sát đúng chủ đề, đúng nội dung transcript và gợi ý câu hỏi vòng sau thật liên quan.'
-        },
-        {
-          role: 'user',
-          content: buildPracticePromptContextV2({
-            practiceType: input.practiceType,
-            difficulty: input.difficulty,
-            topic: input.topic,
-            transcript: metrics.transcript,
-            speechRateWpm: metrics.speechRateWpm,
-            volumeStability: metrics.volumeStability,
-            clarityScore: metrics.clarityScore,
-            pauseScore: metrics.pauseScore,
-            confidenceScore: metrics.confidenceScore,
-            fillerWordCount: metrics.fillerWordCount,
-            repeatCount: metrics.repeatCount,
-            targetRole: input.targetRole,
-            profileSummary: input.profileSummary
-          })
+            contextPrompt
         }
-      ],
-      text: {
-        format: zodTextFormat(practiceFeedbackSchema, 'practice_feedback')
-      }
+      ]
     });
 
-    const normalizedFeedback = normalizePracticeFeedbackOutput(response.output_parsed, fallback, {
+    const raw = response.choices[0]?.message?.content ?? '{}';
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+
+    const normalizedFeedback = normalizePracticeFeedbackOutput(parsed, fallback, {
       practiceType: input.practiceType,
       topic: input.topic,
       transcript: metrics.transcript,
@@ -2370,6 +2451,7 @@ export const analyzePractice = async (input: {
       warningMessage: transcription.warningMessage
     };
   } catch (error) {
+    logger.error(`[analyzePractice] ${error instanceof Error ? error.message : String(error)}`);
     return {
       ...metrics,
       ...fallback,
@@ -2444,89 +2526,13 @@ const normalizeRealtimeProviderError = (raw: string) => {
   return raw;
 };
 
-export const createRealtimePracticeSession = async (input: RealtimePracticeInput) => {
-  if (!env.openaiApiKey) {
-    throw new Error('Chưa cấu hình OPENAI_API_KEY nên chưa thể mở phòng hội thoại giọng nói.');
-  }
-
-  const response = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.openaiApiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      expires_after: {
-        anchor: 'created_at',
-        seconds: 600
-      },
-      session: {
-        type: 'realtime',
-        model: env.openaiRealtimeModel,
-        instructions: buildRealtimePracticeInstructions(input),
-        output_modalities: ['audio'],
-        audio: {
-          input: {
-            transcription: {
-              model: env.openaiTranscribeModel
-            },
-            turn_detection: {
-              type: 'server_vad',
-              threshold: 0.45,
-              prefix_padding_ms: 300,
-              silence_duration_ms: input.difficulty === 'hard' ? 420 : input.difficulty === 'easy' ? 720 : 560,
-              idle_timeout_ms: 6000,
-              create_response: true,
-              interrupt_response: true
-            }
-          },
-          output: {
-            voice: env.openaiRealtimeVoice,
-            speed: input.difficulty === 'hard' ? 1.03 : 1
-          }
-        }
-      }
-    })
-  });
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as
-      | {
-          error?: { message?: string };
-          message?: string;
-        }
-      | null;
-    const rawMessage =
-      payload?.error?.message ||
-      payload?.message ||
-      `Không thể tạo phiên realtime (${response.status}).`;
-
-    throw new Error(normalizeRealtimeProviderError(String(rawMessage)));
-  }
-
-  const payload = (await response.json()) as {
-    value?: string;
-    session?: {
-      id?: string;
-      model?: string;
-      audio?: {
-        output?: {
-          voice?: string;
-        };
-      };
-    };
-  };
-
-  if (!payload.value) {
-    throw new Error('OpenAI không trả về client secret hợp lệ cho phiên realtime.');
-  }
-
-  return {
-    clientSecret: payload.value,
-    sessionId: payload.session?.id ?? '',
-    model: payload.session?.model ?? env.openaiRealtimeModel,
-    voice: payload.session?.audio?.output?.voice ?? env.openaiRealtimeVoice
-  };
+export const createRealtimePracticeSession = async (_input: RealtimePracticeInput): Promise<never> => {
+  // Tính năng Realtime Voice chỉ hỗ trợ OpenAI Realtime API.
+  // Groq hiện chưa có tương đương.
+  throw new Error(
+    'Tính năng phòng hội thoại giọng nói thời gian thực hiện chưa khả dụng. ' +
+    'Bạn có thể dùng chế độ luyện tập văn bản hoặc tải file ghi âm để nhận phân tích.'
+  );
 };
 
 const fallbackQuestionBank = {
@@ -2733,47 +2739,193 @@ const buildFallbackInterviewQuestion = (input: {
   };
 };
 
+const LANGUAGE_LABELS: Record<string, string> = {
+  vi: 'Vietnamese (tiếng Việt)',
+  en: 'English',
+  ja: 'Japanese (日本語)',
+  ko: 'Korean (한국어)',
+  zh: 'Chinese (中文)'
+};
+
+export const generateOverallInterviewFeedback = async (input: {
+  targetRole: string;
+  cvText: string;
+  history: Array<{ question: string; answer: string }>;
+  language?: string;
+}) => {
+  const language = input.language || 'vi';
+  
+  if (!aiClient) {
+    return {
+      summary: 'Không thể tổng hợp kết quả chi tiết do AI chưa sẵn sàng.',
+      strengths: [],
+      improvements: [],
+      recommendedModels: [],
+      matchedKeywords: [],
+      missingKeywords: []
+    };
+  }
+
+  const promptContent = 
+    `Bạn là một chuyên gia đánh giá năng lực ứng viên cấp cao, được huấn luyện bằng các bộ dữ liệu công nghệ lớn từ Kaggle (dịch sang tiếng Việt).\n` +
+    `Hãy đánh giá tổng quan toàn bộ phiên phỏng vấn dựa trên lịch sử hỏi đáp và mục tiêu ứng tuyển của ứng viên.\n` +
+    `Yêu cầu:\n` +
+    `- Đối chiếu câu trả lời với các từ khóa chuyên ngành, chỉ ra từ khóa nào ứng viên dùng tốt (matchedKeywords) và từ khóa nào còn thiếu (missingKeywords).\n` +
+    `- Gợi ý các mô hình/công nghệ tham khảo (ví dụ: GPT.5, LLM, Deep Learning, Transformer, hay các công nghệ đặc thù của ngành) để ứng viên cải thiện (recommendedModels).\n` +
+    `- Đưa ra nhận xét tổng thể (summary), điểm mạnh (strengths) và điểm cần khắc phục (improvements).\n\n` +
+    `Trả về JSON: { summary: string, strengths: string[], improvements: string[], recommendedModels: string[], matchedKeywords: string[], missingKeywords: string[] }\n`;
+
+  try {
+    const response = await aiClient.chat.completions.create({
+      model: env.openaiTextModel,
+      temperature: 0.4,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: promptContent
+        },
+        {
+          role: 'user',
+          content: 
+            `Vai trò mục tiêu: ${normalizeText(input.targetRole)}\n` +
+            `CV ứng viên:\n${input.cvText ? input.cvText.slice(0, 2000) : 'Chưa cung cấp'}\n` +
+            `Lịch sử phỏng vấn:\n${formatInterviewHistoryForPrompt(input.history)}`
+        }
+      ]
+    });
+
+    const raw = response.choices[0]?.message?.content ?? '{}';
+    let parsed: Partial<z.infer<typeof overallFeedbackSchema>>;
+    try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+
+    return {
+      summary: isUsableText(parsed.summary) ? normalizeText(parsed.summary) : 'Phiên phỏng vấn đã hoàn tất.',
+      strengths: Array.isArray(parsed.strengths) ? parsed.strengths.map(normalizeText) : [],
+      improvements: Array.isArray(parsed.improvements) ? parsed.improvements.map(normalizeText) : [],
+      recommendedModels: Array.isArray(parsed.recommendedModels) ? parsed.recommendedModels.map(normalizeText) : [],
+      matchedKeywords: Array.isArray(parsed.matchedKeywords) ? parsed.matchedKeywords.map(normalizeText) : [],
+      missingKeywords: Array.isArray(parsed.missingKeywords) ? parsed.missingKeywords.map(normalizeText) : []
+    };
+  } catch (error) {
+    logger.error(`[generateOverallInterviewFeedback] ${error instanceof Error ? error.message : String(error)}`);
+    return {
+      summary: 'Hoàn tất phiên phỏng vấn (không sinh được phân tích nâng cao).',
+      strengths: [],
+      improvements: [],
+      recommendedModels: [],
+      matchedKeywords: [],
+      missingKeywords: []
+    };
+  }
+};
+
+const buildInterviewSystemPrompt = (language: string, isFirstQuestion: boolean = false, company?: string, lastAnswerScore?: number) => {
+  const companyName = company || 'X Interview';
+
+  // Adaptive logic: dua tren diem cau tra loi truoc
+  const getAdaptiveBehavior = (): string => {
+    if (isFirstQuestion || lastAnswerScore === undefined || lastAnswerScore === null) return '';
+    if (lastAnswerScore >= 80) {
+      return language === 'en'
+        ? 'The candidate\'s last answer scored ' + lastAnswerScore + '/100 - excellent. Briefly acknowledge their strong point (1 sentence), then drill DEEPER with a technical follow-up or edge-case scenario.'
+        : 'Cau tra loi truoc dat ' + lastAnswerScore + '/100 - xuat sac. Khen ngoi ngan gon (1 cau), sau do hoi sau hon voi tinh huong edge-case de kiem tra gioi han kien thuc.';
+    }
+    if (lastAnswerScore >= 60) {
+      return language === 'en'
+        ? 'The candidate\'s last answer scored ' + lastAnswerScore + '/100 - decent. Ask a related question giving them a chance to show depth they may have missed.'
+        : 'Cau tra loi truoc dat ' + lastAnswerScore + '/100 - kha on. Hoi mot cau lien quan cho ho co hoi the hien chieu sau ma ho chua trinh bay het.';
+    }
+    return language === 'en'
+      ? 'The candidate\'s last answer scored ' + lastAnswerScore + '/100 - below expectations. Gently acknowledge their attempt, pivot to a more foundational question to rebuild confidence.'
+      : 'Cau tra loi truoc dat ' + lastAnswerScore + '/100 - duoi muc ky vong. Nhe nhang ghi nhan no luc, sau do chuyen sang cau nen tang hon de giup ho lay lai su tu tin.';
+  };
+
+  const adaptivePart = getAdaptiveBehavior();
+
+  if (language === 'en') {
+    const behavior = isFirstQuestion
+      ? 'CRITICAL - FIRST QUESTION: Warmly introduce yourself as Alex, Senior Technical Interviewer at ' + companyName + '. Greet the candidate by name if found in CV. Ask them to briefly introduce themselves. Do NOT ask technical questions yet.'
+      : 'Ask the next interview question in English based on history and target role. Tailor questions by cross-referencing CV with JD.' + (adaptivePart ? '\n\nADAPTIVE: ' + adaptivePart : '');
+    return (
+      'You are Alex, a Senior Technical Interviewer at ' + companyName + '. You are professional, encouraging, and insightful.\n' + behavior + '\n\n' +
+      'Return JSON: { reply: string, question: string, reason: string, challenge: string, suggestedFocus: string[] }\n' +
+      'All fields in English. For first question, merge introduction + question into \'question\' field, leave \'reply\' empty. CRITICAL: Do NOT include the next question inside the \'reply\' field. The \'reply\' field is ONLY for feedback on the previous answer.'
+    );
+  }
+
+  if (language === 'ja') {
+    const behavior = isFirstQuestion
+      ? 'CRITICAL: Alexとして自己紹介し、' + companyName + 'のシニアインタビュアーとして候補者を温かく迎え、CVの名前で呼びかけてください。自己紹介を求めてください。まだ技術的な質問はしないでください。'
+      : '面接の履歴とターゲットロールに基づいて次の質問を設けてください。' + (adaptivePart ? '\n\n' + adaptivePart : '');
+    return (
+      'あなたは' + companyName + 'のシニアテクニカルインタビュアーAlexです。プロで励ましのある姿勢で面接してください。\n' + behavior + '\n\n' +
+      'JSONを返してください: { reply: string, question: string, reason: string, challenge: string, suggestedFocus: string[] }\n' +
+      '全フィールドは日本語で。最初の質問では自己紹介と質問を\'question\'にまとめてください。絶対に次の質問を\'reply\'フィールドに含めないでください。\'reply\'は前の回答へのフィードバック専用です。'
+    );
+  }
+
+  // Vietnamese (default)
+  const viFirstBehavior = isFirstQuestion
+    ? 'QUAN TRONG - CAU HOI DAU TIEN: Tu gioi thieu ban la Alex, Senior Technical Interviewer tai ' + companyName + '. Chao ung vien bang ten neu tim thay trong CV (vi du: "Chao Dung, minh la Alex..."). Yeu cau ho gioi thieu ban than tong quan. TUYET DOI KHONG hoi cau hoi chuyen mon sau. Gom loi chao + cau hoi vao field \'question\'.'
+    : 'Dat cau hoi tiep theo bam sat lich su hoi dap va vai tro muc tieu. Uu tien tu khoa chuyen mon. Neu ung vien dinh chinh ten, ghi nhan va goi dung ten moi.' + (adaptivePart ? '\n\nHUONG DAN THICH NGHI: ' + adaptivePart : '');
+
+  return (
+    'Ban la Alex, Senior Technical Interviewer tai ' + companyName + '. Ban co phong cach phong van chuyen nghiep, khich le va sau sac.\n' + viFirstBehavior + '\n\n' +
+    'Tra ve JSON: { reply: string, question: string, reason: string, challenge: string, suggestedFocus: string[] }\n' +
+    'Tat ca cac field phai bang tieng Viet co dau. Neu la cau hoi dau tien, de trong field \'reply\' va gom toan bo loi chao + cau hoi vao field \'question\'. TUYET DOI KHONG dat cau hoi tiep theo vao field \'reply\'. Field \'reply\' CHI dung de nhan xet ngan gon cau tra loi truoc do.'
+  );
+};
+
 export const generateInterviewQuestion = async (input: {
   difficulty: 'easy' | 'medium' | 'hard';
   targetRole: string;
+  topic?: string;
   history: Array<{ question: string; answer: string }>;
   cvSummary?: string;
+  language?: string;
+  jobDescription?: string;
+  company?: string;
+  lastAnswerScore?: number;
 }) => {
+  const language = input.language || 'vi';
   const fallback = buildFallbackInterviewQuestionV2(input);
+  const isFirstQuestion = !input.history || input.history.length === 0;
 
-  if (!openai) {
+  if (!aiClient) {
     return fallback;
   }
 
   try {
-    const response = await openai.responses.parse({
+    const response = await aiClient.chat.completions.create({
       model: env.openaiTextModel,
-      input: [
+      temperature: 0.5,
+      response_format: { type: 'json_object' },
+      messages: [
         {
           role: 'system',
-          content:
-            'Bạn là nhà phỏng vấn AI bằng tiếng Việt. Hãy đặt câu hỏi tiếp theo thật bám sát lịch sử hỏi đáp, bám vai trò mục tiêu và luôn ưu tiên câu hỏi có chiều sâu, thực tế, có thể truy vấn hoặc phản biện khi cần.'
+          content: buildInterviewSystemPrompt(language, isFirstQuestion, input.company, input.lastAnswerScore)
         },
         {
           role: 'user',
           content:
-            `Vị trí mục tiêu: ${normalizeText(input.targetRole) || 'Chưa cung cấp'}\n` +
-            `Mức độ: ${input.difficulty}\n` +
-            `Tóm tắt CV: ${normalizeText(input.cvSummary) || 'Chưa cung cấp'}\n` +
-            'Yêu cầu bắt buộc:\n' +
-            '- Trường reply phải phản hồi trực tiếp cho câu trả lời gần nhất của ứng viên trong 1-2 câu, bằng tiếng Việt tự nhiên.\n' +
-            '- Trường question phải là câu hỏi kế tiếp thật sự nối tiếp nội dung vừa trả lời, không được hỏi sang chủ đề lạ.\n' +
-            '- Nếu ứng viên trả lời còn chung chung, hãy truy vấn sâu vào hành động, quyết định và kết quả đo được.\n' +
-            '- Nếu chưa có lịch sử, reply có thể là câu dẫn ngắn để bắt đầu buổi luyện.\n' +
-            `Lịch sử hỏi đáp gần đây:\n${formatInterviewHistoryForPrompt(input.history)}`
+            `Target role: ${normalizeText(input.targetRole) || 'Not provided'}\n` +
+            (input.company ? `Company: ${normalizeText(input.company)}\n` : '') +
+            (input.jobDescription ? `Job Description / Requirements:\n${normalizeText(input.jobDescription)}\n\n` : '') +
+            `Topic: ${normalizeText(input.topic) || 'General practice'}\n` +
+            `Difficulty: ${input.difficulty}\n` +
+            `Interview language: ${LANGUAGE_LABELS[language] || language}\n` +
+            `CV Summary:\n${normalizeText(input.cvSummary) || 'Not provided'}\n` +
+            (isFirstQuestion 
+              ? `\nThis is the beginning of the interview. Please generate the first introductory question.` 
+              : `\nRecent interview history:\n${formatInterviewHistoryForPrompt(input.history)}`)
         }
-      ],
-      text: {
-        format: zodTextFormat(nextQuestionSchema, 'next_question')
-      }
+      ]
     });
 
-    const parsed = (response.output_parsed ?? {}) as Partial<z.infer<typeof nextQuestionSchema>>;
+    const raw = response.choices[0]?.message?.content ?? '{}';
+    let parsed: Partial<z.infer<typeof nextQuestionSchema>>;
+    try { parsed = JSON.parse(raw); } catch { parsed = {}; }
 
     return {
       reply: isUsableText(parsed.reply) ? normalizeText(parsed.reply) : fallback.reply,
@@ -2788,5 +2940,62 @@ export const generateInterviewQuestion = async (input: {
     };
   } catch {
     return fallback;
+  }
+};
+
+export const analyzeQuestion = async (questionText: string, industry: string) => {
+  if (!aiClient) throw new Error('AI service not configured');
+  
+  try {
+    const prompt = `Phân tích câu hỏi phỏng vấn sau: "${questionText}" thuộc lĩnh vực "${industry}".
+    Hãy đóng vai chuyên gia nhân sự và trả về kết quả dưới định dạng JSON (KHÔNG bọc trong markdown) bao gồm:
+    {
+      "interviewerEvaluation": ["Mục đích 1", "Mục đích 2"],
+      "answerStructure": {
+        "open": "Mở bài gợi ý",
+        "points": ["Luận điểm 1", "Luận điểm 2", "Luận điểm 3"],
+        "close": "Kết luận"
+      },
+      "importantTips": [
+        { "priority": "HIGH" | "MEDIUM" | "LOW", "content": "Mẹo 1" }
+      ],
+      "followUpQuestions": ["Câu hỏi 1", "Câu hỏi 2"],
+      "commonMistakes": ["Lỗi 1", "Lỗi 2"]
+    }`;
+
+    const response = await aiClient.chat.completions.create({
+      model: env.openaiTextModel || 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' }
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error('No content returned from AI');
+
+    const parsed = JSON.parse(content);
+    return questionAnalysisSchema.parse(parsed);
+  } catch (error) {
+    logger.error(`Error in analyzeQuestion: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error('Không thể phân tích câu hỏi lúc này.');
+  }
+};
+
+export const generateSpeech = async (text: string): Promise<Buffer> => {
+  if (!aiClient) {
+    throw new Error('AI service not configured');
+  }
+  try {
+    const response = await aiClient.audio.speech.create({
+      model: 'tts-1',
+      voice: 'alloy',
+      input: text,
+      response_format: 'mp3',
+    });
+    
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error: any) {
+    logger.error(`Error generating speech: ${error.message}`);
+    throw new Error('Không thể tạo âm thanh AI từ văn bản lúc này.');
   }
 };

@@ -1,5 +1,6 @@
-﻿import { Activity, Ban, Crown, Power, ShieldCheck, Users, Waves } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Activity, Ban, Crown, Power, ShieldCheck, Users, Waves } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import './AdminPage.css';
 
 import { StatCard } from '../components/StatCard';
 import { api } from '../lib/api';
@@ -76,6 +77,10 @@ export function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState('');
 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'xp' | 'date'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
   const loadAdminData = async () => {
     setLoading(true);
     setError('');
@@ -129,6 +134,38 @@ export function AdminPage() {
       setProcessingId('');
     }
   };
+
+  const handleSort = (column: 'name' | 'xp' | 'date') => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('desc');
+    }
+  };
+
+  const filteredAndSortedUsers = useMemo(() => {
+    let result = users;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(u => 
+        u.name.toLowerCase().includes(term) || 
+        u.email.toLowerCase().includes(term)
+      );
+    }
+    
+    return [...result].sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === 'name') {
+        comparison = a.name.localeCompare(b.name);
+      } else if (sortBy === 'xp') {
+        comparison = a.totalXp - b.totalXp;
+      } else if (sortBy === 'date') {
+        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  }, [users, searchTerm, sortBy, sortOrder]);
 
   if (loading) {
     return <div className="panel-card">Đang tải trung tâm quản trị...</div>;
@@ -404,42 +441,85 @@ export function AdminPage() {
           </span>
         </div>
 
-        <div className="admin-user-list admin-user-list-enterprise admin-user-list-control">
-          {users.map((item) => (
-            <article key={item.id} className="admin-user-card admin-user-card-premium admin-user-card-minimal admin-user-card-control">
-              <div className="admin-user-main">
-                <div>
-                  <div className="admin-user-title">
-                    <strong>{item.name}</strong>
-                    <span className={item.isRootAdmin ? 'status-badge dark' : item.isDisabled ? 'status-badge danger' : 'status-badge success'}>
-                      {item.isRootAdmin ? 'Quản trị viên gốc' : item.isDisabled ? 'Đã vô hiệu hóa' : 'Đang hoạt động'}
+        <div className="xi-table-controls">
+          <input
+            type="text"
+            placeholder="Tìm kiếm theo tên hoặc email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="xi-search-input"
+          />
+        </div>
+
+        <div className="xi-table-wrapper">
+          <table className="xi-table">
+            <thead>
+              <tr>
+                <th>Avatar</th>
+                <th onClick={() => handleSort('name')} className="sortable-header">
+                  Tên & Email {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                </th>
+                <th>Vai trò</th>
+                <th onClick={() => handleSort('xp')} className="sortable-header">
+                  XP & Streak {sortBy === 'xp' && (sortOrder === 'asc' ? '↑' : '↓')}
+                </th>
+                <th>Trạng thái</th>
+                <th onClick={() => handleSort('date')} className="sortable-header">
+                  Ngày tạo {sortBy === 'date' && (sortOrder === 'asc' ? '↑' : '↓')}
+                </th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredAndSortedUsers.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <div className="xi-avatar-initials">
+                      {item.name.charAt(0).toUpperCase()}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="xi-user-info">
+                      <strong>{item.name}</strong>
+                      <span className="muted-text">{item.email}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span className="tag-chip">{item.isRootAdmin ? 'Quản trị viên gốc' : getRoleLabel(item.role)}</span>
+                  </td>
+                  <td>
+                    <div className="xi-xp-streak">
+                      <strong>{item.totalXp} XP</strong>
+                      <span className="muted-text">{item.streak} ngày</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span className={item.isRootAdmin ? 'badge-dark' : item.isDisabled ? 'badge-hard' : 'badge-easy'}>
+                      {item.isRootAdmin ? 'Bảo vệ' : item.isDisabled ? 'Đang khóa' : 'Hoạt động'}
                     </span>
-                  </div>
-                  <p>{item.email}</p>
-                  <div className="admin-user-summary">
-                    <span className="tag-chip">{getRoleLabel(item.role)}</span>
-                    {item.targetRole ? <span className="tag-chip">{item.targetRole}</span> : null}
-                    <span className="tag-chip">{item.totalXp} XP</span>
-                    <span className="tag-chip">{item.weeklyXp} XP tuần</span>
-                    <span className="tag-chip">{item.energy}/5 năng lượng</span>
-                    <span className="tag-chip">Tạo lúc {formatShortDate(item.createdAt)}</span>
-                  </div>
-                  {item.disabledReason ? <p className="muted-text">Lý do: {item.disabledReason}</p> : null}
-                </div>
-                <div className="admin-user-actions">
-                  <button
-                    type="button"
-                    className={item.isDisabled ? 'primary-button' : 'danger-button'}
-                    disabled={item.isRootAdmin || processingId === item.id}
-                    onClick={() => handleToggleStatus(item)}
-                  >
-                    <Power size={16} />
-                    {processingId === item.id ? 'Đang cập nhật...' : item.isDisabled ? 'Kích hoạt lại' : 'Vô hiệu hóa'}
-                  </button>
-                </div>
-              </div>
-            </article>
-          ))}
+                  </td>
+                  <td>
+                    {formatShortDate(item.createdAt)}
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className={item.isDisabled ? 'xi-btn-outline-primary' : 'xi-btn-outline-danger'}
+                      disabled={item.isRootAdmin || processingId === item.id}
+                      onClick={() => handleToggleStatus(item)}
+                    >
+                      {processingId === item.id ? 'Đang xử lý...' : item.isDisabled ? 'Mở khóa' : 'Khóa'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {filteredAndSortedUsers.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="text-center py-8">Không tìm thấy người dùng nào.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
     </div>

@@ -21,7 +21,13 @@ export const isRootAdmin = (user: Pick<UserShape, 'email'> | UserDocument) => is
 export const signToken = (user: UserDocument) =>
   jwt.sign({ sub: user._id.toString(), role: user.role }, env.jwtSecret, { expiresIn: '7d' });
 
-export const serializeUser = (user: UserDocument) => ({
+export const serializeUser = (user: UserDocument) => {
+  // Auto-migrate: nếu user cũ đã có industry/targetRole nhưng chưa có flag onboardingCompleted
+  // thì coi như đã hoàn thành onboarding để không bắt chọn lại
+  const hasExistingProfile = !!(user.industry?.trim() || user.targetRole?.trim());
+  const onboardingCompleted = user.onboardingCompleted === true || hasExistingProfile;
+
+  return {
   id: user._id.toString(),
   name: user.name,
   email: user.email,
@@ -30,6 +36,12 @@ export const serializeUser = (user: UserDocument) => ({
   bio: user.bio,
   targetRole: user.targetRole,
   experienceLevel: user.experienceLevel,
+  // Onboarding
+  onboardingCompleted,
+  industryGroup: user.industryGroup ?? '',
+  industry: user.industry ?? '',
+  specialization: user.specialization ?? '',
+  //
   skills: user.skills,
   streak: user.streak,
   longestStreak: user.longestStreak,
@@ -46,5 +58,8 @@ export const serializeUser = (user: UserDocument) => ({
   disabledReason: user.disabledReason,
   isRootAdmin: isRootAdmin(user),
   dailyGoals: user.dailyGoals,
+  remainingInterviews: user.remainingInterviews ?? 0,
+  planLabel: user.planLabel ?? 'Miễn phí',
   createdAt: user.createdAt
-});
+};
+};

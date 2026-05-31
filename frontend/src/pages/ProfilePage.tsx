@@ -9,6 +9,7 @@
   WandSparkles,
   Zap
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -18,6 +19,7 @@ import { api } from '../lib/api';
 const experienceLevels = ['Mới bắt đầu', 'Sơ cấp', 'Trung cấp', 'Nâng cao'];
 
 export function ProfilePage() {
+  const { t } = useTranslation();
   const { user, updateUser } = useAuth();
   const [form, setForm] = useState({
     name: '',

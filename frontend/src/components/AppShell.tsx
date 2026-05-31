@@ -2,14 +2,20 @@ import {
   ArrowRight,
   BookOpen,
   Bot,
+  BriefcaseBusiness,
   CalendarDays,
+  CreditCard,
   LayoutDashboard,
+  Library,
+  ListChecks,
   LogOut,
+  Settings,
   Mic,
   ShieldCheck,
   Sparkles,
   UserCircle2,
-  Zap
+  Zap,
+  MonitorPlay
 } from 'lucide-react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 
@@ -17,23 +23,29 @@ import { ThemeToggle } from './ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
-  { to: '/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
-  { to: '/courses', label: 'Khóa học', icon: BookOpen },
-  { to: '/practice', label: 'Luyện tập AI', icon: Mic },
-  { to: '/cv', label: 'Phân tích CV', icon: Bot },
-  { to: '/profile', label: 'Hồ sơ cá nhân', icon: UserCircle2 }
+  { to: '/dashboard', label: 'Trang chủ', icon: LayoutDashboard },
+  { to: '/questions', label: 'Ngân hàng câu hỏi', icon: ListChecks },
+  { to: '/interview-sets', label: 'Luyện tập phỏng vấn', icon: MonitorPlay },
+  { to: '/packages', label: 'Gói dịch vụ', icon: CreditCard },
+  { to: '/practice', label: 'Luyện tập nói', icon: Mic },
+  { to: '/cv', label: 'Hồ sơ CV', icon: BriefcaseBusiness }
 ];
 
 const pageMeta = {
   '/dashboard': {
-    label: 'Tổng quan',
-    title: 'Tổng quan luyện tập',
+    label: 'Trang chủ',
+    title: 'Trang chủ',
     caption: 'Toàn bộ tiến độ trong một nơi'
   },
-  '/courses': {
-    label: 'Khóa học',
-    title: 'Thư viện khóa học',
-    caption: 'Gửi yêu cầu học và xem nội dung sau khi được duyệt'
+  '/interview-sets': {
+    label: 'Luyện tập phỏng vấn',
+    title: 'Luyện tập phỏng vấn',
+    caption: 'Các bài test từ những công ty hàng đầu'
+  },
+  '/packages': {
+    label: 'Gói dịch vụ',
+    title: 'Gói dịch vụ',
+    caption: 'Nâng cấp tài khoản của bạn'
   },
   '/practice': {
     label: 'Luyện tập',
@@ -54,17 +66,12 @@ const pageMeta = {
     label: 'Quản trị',
     title: 'Quản trị hệ thống',
     caption: 'Điều hành và theo dõi toàn bộ'
-  },
-  '/admin/courses': {
-    label: 'Quản trị khóa học',
-    title: 'Quản trị khóa học',
-    caption: 'Tạo khóa học và duyệt yêu cầu học viên'
   }
 } as const;
 
 const getRouteKey = (pathname: string) => {
-  if (pathname.startsWith('/admin/courses')) return 'admin-courses';
-  if (pathname.startsWith('/courses')) return 'courses';
+  if (pathname.startsWith('/interview-sets')) return 'interview-sets';
+  if (pathname.startsWith('/packages')) return 'packages';
   if (pathname.startsWith('/practice')) return 'practice';
   if (pathname.startsWith('/cv')) return 'cv';
   if (pathname.startsWith('/profile')) return 'profile';
@@ -73,8 +80,8 @@ const getRouteKey = (pathname: string) => {
 };
 
 const getPageMeta = (pathname: string) => {
-  if (pathname.startsWith('/admin/courses')) return pageMeta['/admin/courses'];
-  if (pathname.startsWith('/courses')) return pageMeta['/courses'];
+  if (pathname.startsWith('/interview-sets')) return pageMeta['/interview-sets'];
+  if (pathname.startsWith('/packages')) return pageMeta['/packages'];
   if (pathname.startsWith('/practice')) return pageMeta['/practice'];
   if (pathname.startsWith('/cv')) return pageMeta['/cv'];
   if (pathname.startsWith('/profile')) return pageMeta['/profile'];
@@ -108,37 +115,17 @@ export function AppShell() {
 
   return (
     <div className={`app-shell workspace-overhaul app-shell-${routeKey}`}>
-      <aside className="sidebar-card workspace-rail">
-        <div className="workspace-rail-section workspace-rail-brand">
-          <span className="workspace-rail-mark">SA</span>
-          <div>
-            <p className="eyebrow">SpeakAI</p>
-            <h1>Studio</h1>
-          </div>
-        </div>
-
-        <div className="workspace-rail-section workspace-rail-account">
-          <div className="workspace-rail-account-head">
-            <div>
-              <p className="eyebrow">Tài khoản hiện tại</p>
-              <h2>{roleLabel}</h2>
+      <aside className="sidebar-card workspace-rail new-sidebar">
+        <div className="new-sidebar-brand">
+          <div className="brand-logo">
+            <div className="brand-icon-box" style={{ background: 'transparent', border: 'none', padding: 0 }}>
+              <img src="/logo.png" alt="SpeakAI Logo" style={{ width: 32, height: 32 }} />
             </div>
-            <span className="workspace-summary-level">Cấp {user?.level ?? 1}</span>
-          </div>
-
-          <p className="workspace-rail-subtitle">{roleSubtitle}</p>
-
-          <div className="workspace-rail-signal-list">
-            {quickSignals.map((item) => (
-              <span key={item} className="workspace-rail-signal">
-                {item}
-              </span>
-            ))}
+            <span className="brand-text">SpeakAI</span>
           </div>
         </div>
 
-        <div className="workspace-rail-section workspace-rail-navigation">
-          <p className="side-label">Điều hướng</p>
+        <div className="new-sidebar-nav">
           <nav className="side-nav">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -146,82 +133,53 @@ export function AppShell() {
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  className={({ isActive }) => `nav-pill${isActive ? ' active' : ''}`}
+                  className={({ isActive }) => `new-nav-pill${isActive ? ' active' : ''}`}
                 >
-                  <Icon size={18} />
+                  <Icon size={20} />
                   <span>{item.label}</span>
                 </NavLink>
               );
             })}
 
             {isAdmin ? (
-              <NavLink to="/admin" className={({ isActive }) => `nav-pill${isActive ? ' active' : ''}`}>
-                <ShieldCheck size={18} />
+              <NavLink to="/admin" className={({ isActive }) => `new-nav-pill${isActive ? ' active' : ''}`}>
+                <ShieldCheck size={20} />
                 <span>Quản trị hệ thống</span>
-              </NavLink>
-            ) : null}
-
-            {isAdmin ? (
-              <NavLink to="/admin/courses" className={({ isActive }) => `nav-pill${isActive ? ' active' : ''}`}>
-                <BookOpen size={18} />
-                <span>Quản trị khóa học</span>
               </NavLink>
             ) : null}
           </nav>
         </div>
 
-        <div className="workspace-rail-section workspace-rail-actions">
-          <Link to="/practice" className="primary-button large-button sidebar-primary-action">
-            <Sparkles size={16} />
-            Luyện ngay
-          </Link>
-          <Link to="/cv" className="ghost-button large-button sidebar-secondary-action">
-            <Zap size={16} />
-            Tối ưu CV
-          </Link>
-          <button type="button" className="ghost-button sidebar-logout" onClick={logout}>
-            <LogOut size={16} />
-            Đăng xuất
-          </button>
-        </div>
-
-        <div className="workspace-rail-section workspace-rail-footer">
-          <p className="eyebrow">SpeakAI</p>
-          <h3>Luyện nói, phân tích CV, học khóa học và theo dõi tiến độ trong một nền tảng.</h3>
-          <Link to="/courses" className="workspace-support-link">
-            Mở thư viện học
-            <ArrowRight size={15} />
-          </Link>
-        </div>
+        
+        <Link to="/profile" className="new-sidebar-profile" style={{ textDecoration: 'none' }}>
+          <div className="profile-avatar">
+            {user?.name?.substring(0, 2).toUpperCase() || '09'}
+          </div>
+          <div className="profile-info">
+            <h4 className="profile-name">{user?.name || '0986_Nguyễn Duy K...'}</h4>
+            <span className="profile-meta">{user?.remainingInterviews ?? 0} lượt</span>
+          </div>
+          <div className="profile-settings" title="Cài đặt">
+            <Settings size={18} />
+          </div>
+        </Link>
       </aside>
 
       <div className="main-column workspace-stage">
-        <header className="topbar-card workspace-stage-header">
-          <div className="workspace-stage-title">
-            <p className="eyebrow">{meta.label}</p>
-            <h2>{meta.title}</h2>
-            <p>{meta.caption}</p>
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 2rem', borderBottom: 'none' }}>
+          <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+            {location.pathname === '/dashboard' || location.pathname === '/' ? 'Trang chủ' : 
+             location.pathname.includes('/questions') ? 'Ngân hàng câu hỏi' : 
+             location.pathname.includes('/interview-sets') ? 'Luyện tập phỏng vấn' : 
+             location.pathname.includes('/practice') || location.pathname.includes('/interview') ? 'Luyện tập' : 
+             location.pathname.includes('/profile') ? 'Hồ sơ cá nhân' : 'Trang chủ'}
           </div>
-
-          <div className="workspace-stage-tools">
+          <div className="workspace-stage-tools" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <ThemeToggle />
-
-            <Link to="/practice" className="topbar-command-pill">
-              <Sparkles size={16} />
-              <span>Mở phiên luyện</span>
-            </Link>
-
-            <div className="workspace-stage-chip">
-              <CalendarDays size={16} />
-              <div>
-                <span>Hôm nay</span>
-                <strong>{todayLabel}</strong>
-              </div>
-            </div>
           </div>
         </header>
 
-        <section className="workspace-stage-body">
+        <section className="workspace-stage-body" style={{ padding: '2rem' }}>
           <main className="main-content">
             <Outlet />
           </main>

@@ -20,18 +20,21 @@ const heatmapPointSchema = new Schema(
 const practiceSessionSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    questionId: { type: Schema.Types.ObjectId, ref: 'Question', required: false, index: true },
     sourceDraftId: { type: String, unique: true, sparse: true, index: true },
     sourceFingerprint: { type: String, index: true, default: '' },
     practiceType: { type: String, enum: ['presentation', 'interview'], required: true },
     topic: { type: String, required: true, trim: true },
     difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
     transcript: { type: String, default: '' },
+    audioUrl: { type: String, default: '' },
     durationSeconds: { type: Number, default: 0 },
     speechRateWpm: { type: Number, default: 0 },
     volumeStability: { type: Number, default: 0 },
     clarityScore: { type: Number, default: 0 },
     pauseScore: { type: Number, default: 0 },
     confidenceScore: { type: Number, default: 0 },
+    contentScore: { type: Number, default: 0 },
     totalScore: { type: Number, default: 0 },
     fillerWordCount: { type: Number, default: 0 },
     repeatCount: { type: Number, default: 0 },
@@ -39,12 +42,15 @@ const practiceSessionSchema = new Schema(
     strengths: { type: [String], default: [] },
     improvements: { type: [String], default: [] },
     coachNotes: { type: [String], default: [] },
+    sampleAnswer: { type: String, default: '' },
+    topics: { type: [String], default: [] },
     followUpQuestions: { type: [String], default: [] },
     speedTimeline: { type: [timelinePointSchema], default: [] },
     heatmap: { type: [heatmapPointSchema], default: [] },
     passed: { type: Boolean, default: true },
     xpEarned: { type: Number, default: 0 },
-    energyChange: { type: Number, default: 0 }
+    energyChange: { type: Number, default: 0 },
+    language: { type: String, default: 'vi' }
   },
   {
     timestamps: true

@@ -27,16 +27,6 @@ type VoiceMessage = {
   text: string;
 };
 
-type RealtimeTokenResponse = {
-  session: {
-    clientSecret: string;
-    sessionId: string;
-    expiresAt?: number;
-    model: string;
-    voice: string;
-  };
-};
-
 const practiceLabels: Record<PracticeType, string> = {
   presentation: 'Thuyết trình',
   interview: 'Phỏng vấn'
@@ -53,397 +43,248 @@ const createMessageId = () =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-const getRealtimeError = async (response: Response) => {
-  const fallback = 'Không thể kết nối tới phòng hội thoại realtime.';
-
-  try {
-    const text = (await response.text()).trim();
-    if (!text) {
-      return fallback;
-    }
-
-    try {
-      const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string };
-      const message = parsed.error?.message || parsed.message || fallback;
-      return normalizeRealtimeUiError(message);
-    } catch {
-      return normalizeRealtimeUiError(text);
-    }
-  } catch {
-    return fallback;
-  }
-};
-
-const normalizeRealtimeUiError = (message: string) => {
-  const normalized = message.toLowerCase();
-
-  if (normalized.includes('insufficient_quota') || normalized.includes('you exceeded your current quota')) {
-    return 'Tài khoản OpenAI API của bạn đã hết quota hoặc chưa bật thanh toán. Hãy nạp credit hoặc kích hoạt Billing trên platform.openai.com rồi thử lại.';
-  }
-
-  if (normalized.includes('invalid_api_key') || normalized.includes('incorrect api key provided')) {
-    return 'OPENAI_API_KEY hiện không hợp lệ. Hãy tạo key mới trên platform.openai.com/api-keys rồi cập nhật lại.';
-  }
-
-  if (normalized.includes('rate limit')) {
-    return 'OpenAI API đang tạm chặn do quá nhiều yêu cầu trong thời gian ngắn. Hãy đợi một chút rồi mở lại phòng.';
-  }
-
-  return message;
-};
+// Hỗ trợ SpeechRecognition (Chrome, Edge, Safari)
+const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
 export function RealtimePracticeRoom({ practiceType, difficulty, topic }: RealtimePracticeRoomProps) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const dataChannelRef = useRef<RTCDataChannel | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const assistantDraftRef = useRef('');
-
-  const [status, setStatus] = useState<'idle' | 'connecting' | 'ready' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'ready' | 'listening' | 'thinking' | 'speaking' | 'error'>('idle');
   const [phase, setPhase] = useState('Chưa mở phòng hội thoại');
   const [error, setError] = useState('');
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
-  const [assistantDraft, setAssistantDraft] = useState('');
-  const [userSpeaking, setUserSpeaking] = useState(false);
+  const [userDraft, setUserDraft] = useState('');
   const [assistantSpeaking, setAssistantSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [sessionInfo, setSessionInfo] = useState<RealtimeTokenResponse['session'] | null>(null);
 
-  const browserSupported =
-    typeof window !== 'undefined' &&
-    typeof window.RTCPeerConnection !== 'undefined' &&
-    Boolean(window.navigator.mediaDevices?.getUserMedia);
+  // Refs cho Recognition và Synthesis
+  const recognitionRef = useRef<any>(null);
+  const synthesisRef = useRef<SpeechSynthesis | null>(window.speechSynthesis);
+  const isComponentMounted = useRef(true);
+
+  const browserSupported = Boolean(SpeechRecognition);
+
+  useEffect(() => {
+    isComponentMounted.current = true;
+    return () => {
+      isComponentMounted.current = false;
+      stopAll();
+    };
+  }, []);
+
+  const stopAll = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.onresult = null;
+      recognitionRef.current.onend = null;
+      recognitionRef.current.onerror = null;
+      recognitionRef.current.stop();
+    }
+    if (synthesisRef.current) {
+      synthesisRef.current.cancel();
+    }
+  };
 
   const appendMessage = (role: VoiceMessage['role'], text: string) => {
     const normalized = text.trim();
-    if (!normalized) {
-      return;
-    }
+    if (!normalized) return;
 
     setMessages((current) => {
-      const lastMessage = current[current.length - 1];
-      if (lastMessage && lastMessage.role === role && lastMessage.text === normalized) {
-        return current;
-      }
-
       return [...current.slice(-9), { id: createMessageId(), role, text: normalized }];
     });
   };
 
-  const destroyRoomResources = () => {
-    try {
-      if (dataChannelRef.current?.readyState === 'open') {
-        dataChannelRef.current.send(JSON.stringify({ type: 'response.cancel' }));
-      }
-    } catch {
-      // Bỏ qua lỗi đóng kênh dữ liệu.
-    }
-
-    dataChannelRef.current?.close();
-    dataChannelRef.current = null;
-
-    peerConnectionRef.current?.getSenders().forEach((sender) => sender.track?.stop());
-    peerConnectionRef.current?.close();
-    peerConnectionRef.current = null;
-
-    localStreamRef.current?.getTracks().forEach((track) => track.stop());
-    localStreamRef.current = null;
-
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.srcObject = null;
-    }
-
-    assistantDraftRef.current = '';
-  };
-
-  const teardownRoom = (nextStatus: 'idle' | 'error', nextPhase: string) => {
-    destroyRoomResources();
-    setAssistantDraft('');
-    setUserSpeaking(false);
-    setAssistantSpeaking(false);
-    setIsMuted(false);
-    setStatus(nextStatus);
-    setPhase(nextPhase);
-  };
-
-  useEffect(
-    () => () => {
-      destroyRoomResources();
-    },
-    []
-  );
-
-  const sendRoomEvent = (payload: Record<string, unknown>) => {
-    if (dataChannelRef.current?.readyState !== 'open') {
-      return;
-    }
-
-    dataChannelRef.current.send(JSON.stringify(payload));
-  };
-
-  const askAiToOpen = () => {
-    sendRoomEvent({
-      type: 'response.create',
-      response: {
-        instructions: `Hãy mở lời thật ngắn gọn bằng tiếng Việt, giới thiệu đây là phiên ${practiceLabels[practiceType].toLowerCase()} và mời người dùng bắt đầu với chủ đề: ${topic}.`,
-      }
-    });
-  };
-
-  const askAiNextTurn = () => {
-    sendRoomEvent({
-      type: 'response.create',
-      response: {
-        instructions: `Tiếp tục phiên ${practiceLabels[practiceType].toLowerCase()} ở mức ${difficultyLabels[difficulty].toLowerCase()}. Hãy đặt một câu hỏi tiếp theo thật ngắn, bám sát chủ đề: ${topic}.`,
-      }
-    });
-  };
-
-  const startRoom = async () => {
-    if (!browserSupported) {
-      setError('Trình duyệt hiện tại chưa hỗ trợ WebRTC hoặc chưa cho phép dùng micro.');
-      return;
-    }
-
-    if (!topic.trim()) {
-      setError('Hãy nhập chủ đề trước khi mở phòng hội thoại.');
-      return;
-    }
-
-    teardownRoom('idle', 'Đang làm mới phiên cũ');
-    setMessages([]);
-    setSessionInfo(null);
-    setError('');
-    setStatus('connecting');
-    setPhase('Đang mở phòng hội thoại');
+  // Hàm gọi AI lấy phản hồi
+  const getAiResponse = async (userText: string, currentHistory: VoiceMessage[]) => {
+    setStatus('thinking');
+    setPhase('SpeakAI đang suy nghĩ...');
 
     try {
-      const tokenResponse = await api.post<RealtimeTokenResponse>('/ai/realtime/token', {
-        practiceType,
+      // Format history cho API: { question, answer }
+      // Lịch sử hiện tại: [Assistant(chào), User(trả lời), Assistant(hỏi), User(trả lời)...]
+      const history = [];
+      for (let i = 0; i < currentHistory.length; i += 2) {
+        const assistantMsg = currentHistory[i];
+        const userMsg = currentHistory[i + 1];
+        if (assistantMsg && userMsg) {
+          history.push({ question: assistantMsg.text, answer: userMsg.text });
+        }
+      }
+
+      const response = await api.post('/ai/interview/next-question', {
         difficulty,
+        history,
+        targetRole: '', 
         topic
       });
-      const nextSession = tokenResponse.data.session;
-      setSessionInfo({
-        ...nextSession,
-        expiresAt: nextSession.expiresAt ?? Math.floor(Date.now() / 1000) + 600
-      });
 
-      const localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      localStreamRef.current = localStream;
+      const nextQuestion = response.data.nextQuestion;
+      const fullText = nextQuestion.reply 
+        ? `${nextQuestion.reply} ${nextQuestion.question}` 
+        : nextQuestion.question;
 
-      const peerConnection = new RTCPeerConnection();
-      peerConnectionRef.current = peerConnection;
-
-      localStream.getTracks().forEach((track) => {
-        peerConnection.addTrack(track, localStream);
-      });
-
-      peerConnection.ontrack = (event) => {
-        const [remoteStream] = event.streams;
-        if (audioRef.current && remoteStream) {
-          audioRef.current.srcObject = remoteStream;
-          audioRef.current.play().catch(() => undefined);
-        }
-      };
-
-      peerConnection.onconnectionstatechange = () => {
-        if (peerConnection.connectionState === 'connected') {
-          setStatus('ready');
-          setPhase('SpeakAI đang lắng nghe');
-          return;
-        }
-
-        if (peerConnection.connectionState === 'failed') {
-          setError('Kết nối giọng nói bị gián đoạn. Hãy mở lại phòng.');
-          teardownRoom('error', 'Không thể duy trì kết nối');
-          return;
-        }
-
-        if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'closed') {
-          setPhase('Phiên hội thoại đã ngắt');
-        }
-      };
-
-      const channel = peerConnection.createDataChannel('oai-events');
-      dataChannelRef.current = channel;
-
-      channel.addEventListener('open', () => {
-        setStatus('ready');
-        setPhase('SpeakAI đã vào phòng');
-        askAiToOpen();
-      });
-
-      channel.addEventListener('message', (event) => {
-        try {
-          const payload = JSON.parse(event.data) as {
-            type?: string;
-            delta?: string;
-            text?: string;
-            transcript?: string;
-            error?: { message?: string };
-          };
-
-          switch (payload.type) {
-            case 'input_audio_buffer.speech_started':
-              setUserSpeaking(true);
-              setAssistantSpeaking(false);
-              setPhase('Bạn đang nói');
-              break;
-            case 'input_audio_buffer.speech_stopped':
-              setUserSpeaking(false);
-              setPhase('SpeakAI đang phản hồi');
-              break;
-            case 'conversation.item.input_audio_transcription.completed':
-              appendMessage('user', payload.transcript ?? payload.text ?? '');
-              break;
-            case 'response.created':
-              assistantDraftRef.current = '';
-              setAssistantDraft('');
-              setAssistantSpeaking(true);
-              setPhase('SpeakAI đang trả lời');
-              break;
-            case 'response.output_audio.delta':
-            case 'response.audio.delta':
-              setAssistantSpeaking(true);
-              break;
-            case 'response.output_audio.done':
-            case 'response.audio.done':
-              setAssistantSpeaking(false);
-              break;
-            case 'response.output_audio_transcript.delta':
-            case 'response.audio_transcript.delta':
-              assistantDraftRef.current += payload.delta ?? '';
-              setAssistantDraft(assistantDraftRef.current);
-              break;
-            case 'response.output_audio_transcript.done':
-            case 'response.audio_transcript.done':
-              appendMessage('assistant', payload.transcript ?? assistantDraftRef.current);
-              assistantDraftRef.current = '';
-              setAssistantDraft('');
-              setAssistantSpeaking(false);
-              setPhase('Sẵn sàng cho lượt tiếp theo');
-              break;
-            case 'response.output_text.done':
-              appendMessage('assistant', payload.text ?? '');
-              setAssistantSpeaking(false);
-              setPhase('Sẵn sàng cho lượt tiếp theo');
-              break;
-            case 'response.done':
-              setAssistantSpeaking(false);
-              if (!userSpeaking) {
-                setPhase('Sẵn sàng cho lượt tiếp theo');
-              }
-              break;
-            case 'error':
-              setError(payload.error?.message ?? 'Phiên hội thoại realtime gặp lỗi.');
-              setStatus('error');
-              setPhase('Phiên đang gặp lỗi');
-              break;
-            default:
-              break;
-          }
-        } catch {
-          // Bỏ qua sự kiện ngoài phạm vi dùng cho UI.
-        }
-      });
-
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-
-      const sdpResponse = await fetch('https://api.openai.com/v1/realtime/calls', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${nextSession.clientSecret}`,
-          'Content-Type': 'application/sdp'
-        },
-        body: offer.sdp ?? ''
-      });
-
-      if (!sdpResponse.ok) {
-        throw new Error(await getRealtimeError(sdpResponse));
-      }
-
-      const answer = {
-        type: 'answer' as const,
-        sdp: await sdpResponse.text()
-      };
-
-      await peerConnection.setRemoteDescription(answer);
-    } catch (roomError: any) {
-      const nextMessage = roomError instanceof Error ? roomError.message : 'Không thể mở phòng hội thoại.';
-      setError(nextMessage);
-      teardownRoom('error', 'Không thể mở phòng hội thoại');
+      appendMessage('assistant', fullText);
+      speak(fullText);
+    } catch (err: any) {
+      setError('Không thể kết nối với trí tuệ nhân tạo. Hãy thử lại.');
+      setStatus('ready');
     }
+  };
+
+  // Hàm đọc to văn bản
+  const speak = (text: string) => {
+    if (!synthesisRef.current) return;
+
+    synthesisRef.current.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'vi-VN';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+
+    const voices = synthesisRef.current.getVoices();
+    const viVoice = voices.find(v => v.lang.includes('vi'));
+    if (viVoice) utterance.voice = viVoice;
+
+    utterance.onstart = () => {
+      if (!isComponentMounted.current) return;
+      setStatus('speaking');
+      setAssistantSpeaking(true);
+      setPhase('SpeakAI đang trả lời');
+    };
+
+    utterance.onend = () => {
+      if (!isComponentMounted.current) return;
+      setAssistantSpeaking(false);
+      startListening(); 
+    };
+
+    utterance.onerror = () => {
+      if (!isComponentMounted.current) return;
+      setAssistantSpeaking(false);
+      setStatus('ready');
+      setPhase('Sẵn sàng cho lượt tiếp theo');
+    };
+
+    synthesisRef.current.speak(utterance);
+  };
+
+  // Hàm bắt đầu lắng nghe
+  const startListening = () => {
+    if (!browserSupported || isMuted || !isComponentMounted.current) {
+      setStatus('ready');
+      setPhase('SpeakAI đang lắng nghe (Micro tắt)');
+      return;
+    }
+
+    stopAll();
+
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.lang = 'vi-VN';
+    recognition.interimResults = true;
+    recognition.continuous = false;
+
+    recognition.onstart = () => {
+      setStatus('listening');
+      setPhase('Đang nghe bạn nói...');
+      setUserDraft('');
+    };
+
+    recognition.onresult = (event: any) => {
+      let interimTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          const final = event.results[i][0].transcript;
+          setUserDraft(final);
+          recognition.stop();
+          handleUserSpeechDone(final);
+          return;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+      setUserDraft(interimTranscript);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('STT Error:', event.error);
+      if (event.error !== 'no-speech') {
+        setStatus('ready');
+        setPhase('Không nghe rõ, vui lòng thử lại');
+      } else {
+        setStatus('ready');
+        setPhase('Sẵn sàng cho lượt tiếp theo');
+      }
+    };
+
+    recognition.onend = () => {
+      if (status === 'listening') {
+        setStatus('ready');
+        setPhase('Sẵn sàng cho lượt tiếp theo');
+      }
+    };
+
+    recognition.start();
+  };
+
+  const handleUserSpeechDone = (text: string) => {
+    if (!text.trim()) return;
+    appendMessage('user', text);
+    setMessages(prev => {
+      const newMessages = [...prev.slice(-9), { id: createMessageId(), role: 'user' as const, text }];
+      getAiResponse(text, newMessages);
+      return newMessages;
+    });
+    setUserDraft('');
+  };
+
+  const startRoom = () => {
+    setError('');
+    setMessages([]);
+    setStatus('ready');
+    setPhase('Phòng hội thoại đã sẵn sàng');
+    
+    const welcome = `Chào bạn! Tôi là SpeakAI. Chúng ta sẽ cùng luyện tập ${practiceLabels[practiceType].toLowerCase()} về chủ đề "${topic}". Bạn đã sẵn sàng chưa?`;
+    appendMessage('assistant', welcome);
+    speak(welcome);
   };
 
   const stopRoom = () => {
-    setError('');
-    teardownRoom('idle', 'Đã kết thúc phiên hội thoại');
+    stopAll();
+    setStatus('idle');
+    setPhase('Phiên hội thoại đã kết thúc');
+    setMessages([]);
   };
 
   const toggleMute = () => {
-    if (!localStreamRef.current) {
-      return;
-    }
-
     const nextMuted = !isMuted;
-    localStreamRef.current.getAudioTracks().forEach((track) => {
-      track.enabled = !nextMuted;
-    });
     setIsMuted(nextMuted);
+    if (nextMuted) {
+      if (recognitionRef.current) recognitionRef.current.stop();
+    } else if (status === 'ready') {
+      startListening();
+    }
   };
 
-  const statusLabel =
-    status === 'ready' ? 'Đang trực tuyến' : status === 'connecting' ? 'Đang kết nối' : status === 'error' ? 'Đang lỗi' : 'Chưa mở phòng';
+  const statusLabel = 
+    status === 'idle' ? 'Chưa mở phòng' : 
+    status === 'listening' ? 'Đang nghe' : 
+    status === 'thinking' ? 'Đang suy nghĩ' : 
+    status === 'speaking' ? 'Đang trả lời' : 'Trực tuyến';
 
-  const signalBars = Array.from({ length: 20 }, (_, index) => {
-    const base = 26 + (index % 5) * 11;
-    if (assistantSpeaking) {
-      return base + 24;
-    }
-    if (userSpeaking) {
-      return base + 16;
-    }
-    if (status === 'ready') {
-      return base + 6;
-    }
-    return base;
-  });
-
-  const expiresLabel = sessionInfo?.expiresAt
-    ? new Date(sessionInfo.expiresAt * 1000).toLocaleTimeString('vi-VN', {
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    : '--:--';
-  const voicePanelTitle = assistantSpeaking
-    ? 'SpeakAI đang phản hồi'
-    : userSpeaking
-      ? 'Đang nghe bạn nói'
-      : status === 'ready'
-        ? 'Phiên đang mở'
-        : status === 'connecting'
-          ? 'Đang kết nối'
-          : 'Sẵn sàng luyện nói';
-  const voicePanelSubtitle =
-    status === 'ready'
-      ? isMuted
-        ? 'Micro đang tắt. Bật lại khi bạn muốn nói tiếp.'
-        : 'Micro đang mở, transcript cập nhật theo từng lượt.'
-      : 'Mở phòng để bắt đầu hội thoại realtime.';
-  const micStatusLabel = isMuted ? 'Micro tắt' : status === 'ready' ? 'Micro mở' : 'Chưa mở';
+  const voicePanelTitle = 
+    status === 'listening' ? 'SpeakAI đang lắng nghe' :
+    status === 'thinking' ? 'Đang phân tích ý tưởng...' :
+    status === 'speaking' ? 'SpeakAI đang phản hồi' :
+    status === 'ready' ? 'Sẵn sàng hội thoại' : 'Phòng hội thoại Voice';
 
   return (
     <section className="panel-card realtime-room-card">
       <div className="realtime-room-header">
         <div>
-          <p className="eyebrow">Phòng hội thoại trực tiếp</p>
-          <h3>Trò chuyện với SpeakAI bằng giọng nói</h3>
+          <p className="eyebrow">Phòng hội thoại giả lập Real-time (Free Mode)</p>
+          <h3>Giao tiếp giọng nói với SpeakAI & Groq</h3>
         </div>
-        <span className={`realtime-state-pill ${status}`}>
-          <Radio size={14} />
+        <span className={`realtime-state-pill ${status === 'idle' ? '' : 'ready'}`}>
+          <Radio size={14} className={status !== 'idle' ? 'spin' : ''} />
           {statusLabel}
         </span>
       </div>
@@ -451,20 +292,20 @@ export function RealtimePracticeRoom({ practiceType, difficulty, topic }: Realti
       <div className="realtime-room-stage">
         <div className="realtime-room-core">
           <div className="realtime-core-topline">
-            <span className={`realtime-core-dot ${status}`} />
-            <span>Voice studio</span>
+            <span className={`realtime-core-dot ${status !== 'idle' ? 'ready' : ''}`} />
+            <span>Voice studio (Browser STT/TTS)</span>
           </div>
 
           <div className="realtime-voice-card">
-            <div className={`realtime-orb ${assistantSpeaking ? 'assistant-active' : ''} ${userSpeaking ? 'user-active' : ''} ${status === 'ready' ? 'connected' : ''}`}>
+            <div className={`realtime-orb ${status === 'speaking' ? 'assistant-active' : ''} ${status === 'listening' ? 'user-active' : ''} ${status !== 'idle' ? 'connected' : ''}`}>
               <span className="realtime-orb-ring" />
               <span className="realtime-orb-center">SA</span>
             </div>
 
             <div className="realtime-voice-copy">
-              <span>{sessionInfo?.voice ?? 'Marin'} realtime</span>
+              <span>Hệ thống phản hồi tức thì</span>
               <strong>{voicePanelTitle}</strong>
-              <p>{voicePanelSubtitle}</p>
+              <p>{status === 'idle' ? 'Nhấn nút bên dưới để bắt đầu luyện nói miễn phí.' : phase}</p>
             </div>
           </div>
 
@@ -475,14 +316,8 @@ export function RealtimePracticeRoom({ practiceType, difficulty, topic }: Realti
             </span>
             <span>
               {isMuted ? <MicOff size={14} /> : <Mic size={14} />}
-              {micStatusLabel}
+              {isMuted ? 'Micro tắt' : 'Micro mở'}
             </span>
-          </div>
-
-          <div className={`realtime-signal-bars ${status === 'ready' ? 'active' : ''} ${assistantSpeaking ? 'assistant' : userSpeaking ? 'user' : ''}`}>
-            {signalBars.map((height, index) => (
-              <span key={`${height}-${index}`} style={{ height: `${height}%` }} />
-            ))}
           </div>
         </div>
 
@@ -502,37 +337,37 @@ export function RealtimePracticeRoom({ practiceType, difficulty, topic }: Realti
               <strong>{difficultyLabels[difficulty]}</strong>
             </article>
             <article className="realtime-status-card">
-              <span>Giọng</span>
-              <strong>{sessionInfo?.voice ?? 'Marin'}</strong>
+              <span>STT Engine</span>
+              <strong>Browser Native</strong>
             </article>
             <article className="realtime-status-card">
-              <span>Mô hình</span>
-              <strong>{sessionInfo?.model ?? 'Realtime'}</strong>
+              <span>LLM Engine</span>
+              <strong>Groq / Llama 3</strong>
             </article>
             <article className="realtime-status-card">
-              <span>Hết hạn khóa phiên</span>
-              <strong>{expiresLabel}</strong>
+              <span>TTS Engine</span>
+              <strong>Web Speech</strong>
             </article>
             <article className="realtime-status-card">
-              <span>Micro</span>
-              <strong>{isMuted ? 'Đang tắt' : status === 'ready' ? 'Đang mở' : 'Chưa mở'}</strong>
+              <span>Trạng thái</span>
+              <strong>{isMuted ? 'Tạm dừng' : 'Đang chạy'}</strong>
             </article>
           </div>
 
           <div className="realtime-toolbar">
-            <button type="button" className="primary-button" onClick={startRoom} disabled={status === 'connecting'}>
-              {status === 'connecting' ? <LoaderCircle size={18} className="spin" /> : <Sparkles size={18} />}
-              {status === 'ready' ? 'Mở lại phòng' : 'Mở phòng hội thoại'}
+            <button type="button" className="primary-button" onClick={startRoom} disabled={status === 'listening' || status === 'thinking'}>
+              <Sparkles size={18} />
+              {status === 'idle' ? 'Bắt đầu hội thoại' : 'Làm mới phiên'}
             </button>
-            <button type="button" className="ghost-button" onClick={toggleMute} disabled={status !== 'ready'}>
+            <button type="button" className="ghost-button" onClick={toggleMute} disabled={status === 'idle'}>
               {isMuted ? <Mic size={16} /> : <MicOff size={16} />}
               {isMuted ? 'Bật micro' : 'Tắt micro'}
             </button>
-            <button type="button" className="ghost-button" onClick={askAiNextTurn} disabled={status !== 'ready'}>
+            <button type="button" className="ghost-button" onClick={() => speak("Tôi đang lắng nghe bạn đây, hãy cứ tự nhiên nhé.")} disabled={status === 'idle' || status === 'speaking'}>
               <WandSparkles size={16} />
-              Gợi ý lượt kế tiếp
+              AI nhắc nhở
             </button>
-            <button type="button" className="ghost-button" onClick={stopRoom} disabled={status === 'idle' && !messages.length}>
+            <button type="button" className="ghost-button" onClick={stopRoom} disabled={status === 'idle'}>
               <PhoneOff size={16} />
               Kết thúc
             </button>
@@ -541,15 +376,15 @@ export function RealtimePracticeRoom({ practiceType, difficulty, topic }: Realti
           <div className="realtime-capability-row">
             <span className="badge-soft">
               <Bot size={14} />
-              AI giữ hội thoại theo ngữ cảnh
+              AI phản hồi bằng tiếng Việt
             </span>
             <span className="badge-soft">
               <Waves size={14} />
-              Trả lời lại bằng giọng nói
+              Phát âm tự động từ trình duyệt
             </span>
             <span className="badge-soft">
               <Volume2 size={14} />
-              Transcript xuất hiện theo phiên
+              Nhận diện giọng nói chính xác
             </span>
           </div>
         </div>
@@ -561,17 +396,17 @@ export function RealtimePracticeRoom({ practiceType, difficulty, topic }: Realti
         <div className="realtime-log-head">
           <div>
             <p className="eyebrow">Dòng hội thoại</p>
-            <h4>Transcript thời gian thực</h4>
+            <h4>Lịch sử trò chuyện</h4>
           </div>
           <span className="badge-soft">
-            {messages.length + (assistantDraft ? 1 : 0)} lượt hiển thị
+            {messages.length} lượt
           </span>
         </div>
 
         <div className="realtime-message-log">
-          {!messages.length && !assistantDraft ? (
+          {!messages.length && !userDraft ? (
             <div className="realtime-empty-state">
-              <p>Mở phòng và bắt đầu nói. SpeakAI sẽ phản hồi lại bằng giọng nói ngay trong phiên.</p>
+              <p>Mở phòng và bắt đầu nói. SpeakAI sẽ phản hồi lại bằng giọng nói ngay trong phiên thông qua công nghệ STT/TTS miễn phí.</p>
             </div>
           ) : null}
 
@@ -582,18 +417,18 @@ export function RealtimePracticeRoom({ practiceType, difficulty, topic }: Realti
             </article>
           ))}
 
-          {assistantDraft ? (
-            <article className="realtime-message assistant draft">
-              <span>SpeakAI</span>
-              <strong>{assistantDraft}</strong>
+          {userDraft ? (
+            <article className="realtime-message user draft">
+              <span>Bạn (Đang nghe...)</span>
+              <strong>{userDraft}</strong>
             </article>
           ) : null}
         </div>
       </div>
 
-      {!browserSupported ? <p className="error-text">Thiết bị hiện tại chưa hỗ trợ WebRTC hoặc quyền micro cho phòng hội thoại.</p> : null}
+      {!browserSupported ? <p className="error-text">Trình duyệt của bạn không hỗ trợ công nghệ nhận diện giọng nói (STT). Hãy sử dụng Chrome hoặc Edge để trải nghiệm tốt nhất.</p> : null}
 
-      <audio ref={audioRef} autoPlay playsInline className="realtime-hidden-audio" />
+      <audio className="realtime-hidden-audio" />
     </section>
   );
 }

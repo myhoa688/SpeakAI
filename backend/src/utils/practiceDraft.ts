@@ -10,6 +10,7 @@ export type PracticeDraftAnalysis = {
   clarityScore: number;
   pauseScore: number;
   confidenceScore: number;
+  contentScore: number;
   totalScore: number;
   fillerWordCount: number;
   repeatCount: number;
@@ -17,6 +18,8 @@ export type PracticeDraftAnalysis = {
   strengths: string[];
   improvements: string[];
   coachNotes: string[];
+  sampleAnswer: string;
+  topics: string[];
   followUpQuestions: string[];
   speedTimeline: Array<{ label: string; value: number }>;
   heatmap: Array<{ label: string; score: number; note: string }>;
@@ -28,10 +31,13 @@ export type PracticeDraft = {
   draftId: string;
   fingerprint: string;
   userId: string;
+  questionId?: string;
   practiceType: 'presentation' | 'interview';
   difficulty: 'easy' | 'medium' | 'hard';
   topic: string;
   durationSeconds: number;
+  language?: string;
+  audioUrl?: string;
   passed: boolean;
   analysis: PracticeDraftAnalysis;
 };
@@ -48,6 +54,7 @@ const normalizeAnalysis = (analysis: PracticeDraftAnalysisInput): PracticeDraftA
   clarityScore: roundMetric(Number(analysis.clarityScore ?? 0)),
   pauseScore: roundMetric(Number(analysis.pauseScore ?? 0)),
   confidenceScore: roundMetric(Number(analysis.confidenceScore ?? 0)),
+  contentScore: roundMetric(Number(analysis.contentScore ?? 0)),
   totalScore: roundMetric(Number(analysis.totalScore ?? 0)),
   fillerWordCount: Math.max(0, Math.round(Number(analysis.fillerWordCount ?? 0))),
   repeatCount: Math.max(0, Math.round(Number(analysis.repeatCount ?? 0))),
@@ -57,6 +64,8 @@ const normalizeAnalysis = (analysis: PracticeDraftAnalysisInput): PracticeDraftA
     ? analysis.improvements.map((item) => item.trim()).filter(Boolean)
     : [],
   coachNotes: Array.isArray(analysis.coachNotes) ? analysis.coachNotes.map((item) => item.trim()).filter(Boolean) : [],
+  sampleAnswer: String(analysis.sampleAnswer ?? '').trim(),
+  topics: Array.isArray(analysis.topics) ? analysis.topics.map((item) => item.trim()).filter(Boolean) : [],
   followUpQuestions: Array.isArray(analysis.followUpQuestions)
     ? analysis.followUpQuestions.map((item) => item.trim()).filter(Boolean)
     : [],
@@ -77,16 +86,19 @@ const normalizeAnalysis = (analysis: PracticeDraftAnalysisInput): PracticeDraftA
 
 const buildPracticeFingerprint = (input: {
   userId: string;
+  questionId?: string;
   practiceType: 'presentation' | 'interview';
   difficulty: 'easy' | 'medium' | 'hard';
   topic: string;
   durationSeconds: number;
+  audioUrl?: string;
   analysis: PracticeDraftAnalysis;
 }) =>
   createHash('sha256')
     .update(
       JSON.stringify({
         userId: input.userId,
+        questionId: input.questionId,
         practiceType: input.practiceType,
         difficulty: input.difficulty,
         topic: input.topic.trim().toLowerCase(),
@@ -108,10 +120,13 @@ export const getPracticePassThreshold = () => PRACTICE_PASS_SCORE;
 
 export const buildPracticeDraft = (input: {
   userId: string;
+  questionId?: string;
   practiceType: 'presentation' | 'interview';
   difficulty: 'easy' | 'medium' | 'hard';
   topic: string;
   durationSeconds: number;
+  language?: string;
+  audioUrl?: string;
   analysis: PracticeDraftAnalysisInput;
 }): PracticeDraft => {
   const normalizedAnalysis = normalizeAnalysis(input.analysis);
@@ -121,17 +136,22 @@ export const buildPracticeDraft = (input: {
     draftId: randomUUID(),
     fingerprint: buildPracticeFingerprint({
       userId: input.userId,
+      questionId: input.questionId,
       practiceType: input.practiceType,
       difficulty: input.difficulty,
       topic: input.topic,
       durationSeconds: safeDurationSeconds,
+      audioUrl: input.audioUrl,
       analysis: normalizedAnalysis
     }),
     userId: input.userId,
+    questionId: input.questionId,
     practiceType: input.practiceType,
     difficulty: input.difficulty,
     topic: input.topic.trim(),
     durationSeconds: safeDurationSeconds,
+    language: input.language,
+    audioUrl: input.audioUrl,
     passed: determinePracticePassed(normalizedAnalysis.totalScore),
     analysis: normalizedAnalysis
   };
