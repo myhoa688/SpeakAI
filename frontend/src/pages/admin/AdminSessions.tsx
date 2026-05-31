@@ -16,10 +16,10 @@ type Session = {
   user: { name?: string; email?: string } | null;
 };
 
-const DIFF_COLOR: Record<string, { bg: string; text: string; border: string }> = {
-  easy:   { bg: 'rgba(34,197,94,0.12)',   text: '#4ADE80', border: 'rgba(34,197,94,0.25)'   },
-  medium: { bg: 'rgba(245,158,11,0.12)',  text: '#FCD34D', border: 'rgba(245,158,11,0.25)'  },
-  hard:   { bg: 'rgba(239,68,68,0.12)',   text: '#F87171', border: 'rgba(239,68,68,0.25)'   },
+const DIFF_COLOR: Record<string, { bg: string; color: string; border: string }> = {
+  easy:   { bg: 'rgba(34,197,94,0.12)',   color: '#4ADE80', border: 'rgba(34,197,94,0.25)'   },
+  medium: { bg: 'rgba(245,158,11,0.12)',  color: '#FCD34D', border: 'rgba(245,158,11,0.25)'  },
+  hard:   { bg: 'rgba(239,68,68,0.12)',   color: '#F87171', border: 'rgba(239,68,68,0.25)'   },
 };
 const DIFF_LABEL: Record<string, string> = { easy: 'Dễ', medium: 'TB', hard: 'Khó' };
 

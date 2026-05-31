@@ -97,13 +97,15 @@ router.get('/', async (req, res) => {
  * Số liệu tổng quan cho landing page
  */
 router.get('/stats', async (_req, res) => {
-  const [totalSets, totalQuestions, interviewSessions, practiceSessions, distinctCompanies, totalUsers] = await Promise.all([
+  const [totalSets, totalQuestions, interviewSessions, practiceSessions, distinctCompanies, totalUsers, featuredSets, popularQuestions] = await Promise.all([
     InterviewSet.countDocuments({ isPublished: true }),
     Question.countDocuments(),
     InterviewSession.countDocuments(),
     PracticeSession.countDocuments(),
     InterviewSet.distinct('company', { isPublished: true, company: { $nin: ['', null] } }),
-    User.countDocuments()
+    User.countDocuments(),
+    InterviewSet.find({ isPublished: true }).sort({ attemptCount: -1, createdAt: -1 }).limit(3).lean(),
+    Question.find({ isPublished: true }).limit(4).lean()
   ]);
 
   return res.json({
@@ -112,7 +114,9 @@ router.get('/stats', async (_req, res) => {
     totalQuestions,
     totalCompanies: distinctCompanies.length,
     companies: distinctCompanies,
-    totalUsers
+    totalUsers,
+    featuredSets,
+    popularQuestions
   });
 });
 

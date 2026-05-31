@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, HelpCircle, FolderArchive, Activity, Home, LogOut, PackageSearch, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Users, HelpCircle, FolderArchive, Activity, Home, LogOut, PackageSearch, CreditCard, Star } from 'lucide-react';
 import './AdminLayout.css';
 import { useAuth } from '../../context/AuthContext';
 
@@ -21,6 +21,7 @@ export function AdminLayout() {
     { path: '/admin/sessions', icon: Activity, label: 'Phiên luyện tập' },
     { path: '/admin/packages', icon: PackageSearch, label: 'Quản lý gói dịch vụ' },
     { path: '/admin/transactions', icon: CreditCard, label: 'Quản lý giao dịch' },
+    { path: '/admin/ratings', icon: Star, label: 'Đánh giá' },
   ];
 
   return (

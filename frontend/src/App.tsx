@@ -32,6 +32,7 @@ import { AdminUsers } from './pages/admin/AdminUsers';
 import { AdminQuestions } from './pages/admin/AdminQuestions';
 import { AdminInterviewSets } from './pages/admin/AdminInterviewSets';
 import { AdminSessions } from './pages/admin/AdminSessions';
+import { AdminRatings } from './pages/admin/AdminRatings';
 function HomeRoute() {
   const { user, isLoading } = useAuth();
 
@@ -119,6 +120,7 @@ export default function App() {
             <Route path="/admin/questions" element={<AdminQuestions />} />
             <Route path="/admin/interview-sets" element={<AdminInterviewSets />} />
             <Route path="/admin/sessions" element={<AdminSessions />} />
+            <Route path="/admin/ratings" element={<AdminRatings />} />
             <Route path="/admin/packages" element={<AdminPackagesPage />} />
             <Route path="/admin/transactions" element={<AdminTransactionsPage />} />
           </Route>

@@ -19,7 +19,7 @@ import interviewSetRoutes from './routes/interviewSetRoutes.js';
 import packageRoutes from './routes/packageRoutes.js';
 import transactionRoutes from './routes/transactionRoutes.js';
 import cvRoutes from './routes/cvRoutes.js';
-
+import ratingRoutes from './routes/ratingRoutes.js';
 export const app = express();
 
 const privateNetworkHostPattern =
@@ -96,7 +96,7 @@ app.use('/api/interview-sets', interviewSetRoutes);
 app.use('/api/packages', packageRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/cvs', cvRoutes);
-
+app.use('/api/ratings', ratingRoutes);
 if (hasFrontendBuild) {
   app.use(express.static(frontendDistPath));
 

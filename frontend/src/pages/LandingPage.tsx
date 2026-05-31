@@ -10,7 +10,10 @@ import {
   Sparkles,
   Target,
   Trophy,
-  Users
+  Users,
+  PlayCircle,
+  HelpCircle,
+  Clock
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api } from '../lib/api';
@@ -67,7 +70,9 @@ export function LandingPage() {
     totalQuestions: 0,
     totalCompanies: 0,
     companies: [] as string[],
-    totalUsers: 0
+    totalUsers: 0,
+    featuredSets: [] as any[],
+    popularQuestions: [] as any[]
   });
 
   useEffect(() => {
@@ -203,47 +208,105 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* POPULAR QUESTIONS SECTION */}
+      {stats.popularQuestions && stats.popularQuestions.length > 0 && (
+        <section id="popular-questions" className="x-features-section">
+          <div className="x-container">
+            <div className="x-section-header">
+              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--teal-strong)', textTransform: 'uppercase', letterSpacing: '1px' }}>Luyện tập ngay</span>
+              <h2 className="x-section-title" style={{ textAlign: 'left', marginTop: '0.5rem' }}>Câu hỏi phổ biến</h2>
+            </div>
+            
+            <div className="x-features-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1rem' }}>
+              {stats.popularQuestions.map((q, i) => (
+                <div key={i} className="x-feature-card" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', flex: 1 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-color)' }}>
+                      <HelpCircle size={16} style={{ color: 'var(--text-secondary)' }} />
+                    </div>
+                    <div>
+                      <strong style={{ fontSize: '1rem', display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>{q.question}</strong>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{q.industryGroup || 'General'}</span>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: q.difficulty === 'hard' ? '#ef4444' : q.difficulty === 'medium' ? '#f59e0b' : '#10b981', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px' }}>
+                          {q.difficulty.toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <Link to={`/practice`} className="x-btn-ghost" style={{ fontSize: '0.875rem', padding: '0.5rem 1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <Mic2 size={14} /> Thử ngay
+                  </Link>
+                </div>
+              ))}
+            </div>
+            <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+              <Link to="/practice" className="x-btn-ghost" style={{ borderRadius: '24px' }}>Xem tất cả Câu hỏi <ArrowRight size={16} /></Link>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* INTERVIEW SETS SECTION */}
-      <section id="interview-sets" className="x-features-section" style={{ background: 'transparent' }}>
-        <div className="x-container">
-          <div className="x-section-header centered">
-            <h2 className="x-section-title">Bộ phỏng vấn nổi bật</h2>
-            <p className="x-section-desc">Luyện tập theo bộ câu hỏi thực tế từ các kỳ thi tuyển dụng.</p>
-          </div>
-          
-          <div className="x-features-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
-            <div className="x-feature-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <strong style={{ fontSize: '1.1rem' }}>Business Analyst (BA)</strong>
-                <span className="text-success" style={{ padding: '0.25rem 0.5rem', background: 'rgba(16,185,129,0.1)', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>15 Câu hỏi</span>
-              </div>
-              <p style={{ color: 'var(--text-secondary)' }}>Tổng hợp câu hỏi phỏng vấn vị trí Phân tích nghiệp vụ, đánh giá tư duy logic và kỹ năng giải quyết vấn đề.</p>
-              <Link to="/register" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem', color: 'var(--teal-strong)', fontWeight: 600, textDecoration: 'none' }}>Luyện tập ngay <ArrowRight size={16} /></Link>
+      {stats.featuredSets && stats.featuredSets.length > 0 && (
+        <section id="interview-sets" className="x-features-section" style={{ background: 'transparent' }}>
+          <div className="x-container">
+            <div className="x-section-header centered">
+              <h2 className="x-section-title">Bộ phỏng vấn nổi bật</h2>
+              <p className="x-section-desc">Luyện tập theo bộ câu hỏi thực tế từ các kỳ thi tuyển dụng.</p>
             </div>
             
-            <div className="x-feature-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <strong style={{ fontSize: '1.1rem' }}>Frontend Developer</strong>
-                <span className="text-success" style={{ padding: '0.25rem 0.5rem', background: 'rgba(16,185,129,0.1)', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>20 Câu hỏi</span>
-              </div>
-              <p style={{ color: 'var(--text-secondary)' }}>Câu hỏi về React, Vue, Javascript core và kỹ năng xây dựng giao diện tối ưu hiệu năng.</p>
-              <Link to="/register" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem', color: 'var(--teal-strong)', fontWeight: 600, textDecoration: 'none' }}>Luyện tập ngay <ArrowRight size={16} /></Link>
+            <div className="x-features-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+              {stats.featuredSets.map((set, i) => (
+                <div key={i} className="x-feature-card" style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+                    <div style={{ width: 48, height: 48, borderRadius: '12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <BriefcaseBusiness size={20} className="text-primary" />
+                    </div>
+                    <div>
+                      <strong style={{ fontSize: '1.1rem', display: 'block', color: 'var(--text-primary)' }}>{set.title}</strong>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{set.company}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-color)' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <strong style={{ display: 'block', fontSize: '1.1rem' }}>{set.questionCount}</strong>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Câu hỏi</span>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <strong style={{ display: 'block', fontSize: '1.1rem' }}>{set.durationMinutes}</strong>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Phút</span>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <strong style={{ display: 'block', fontSize: '1.1rem', color: set.difficulty === 'hard' ? '#ef4444' : set.difficulty === 'medium' ? '#f59e0b' : '#10b981', textTransform: 'capitalize' }}>
+                        {set.difficulty === 'hard' ? 'Khó' : set.difficulty === 'medium' ? 'T.Bình' : 'Dễ'}
+                      </strong>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Độ khó</span>
+                    </div>
+                  </div>
+
+                  <div style={{ flex: 1, marginBottom: '1.5rem' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <CheckCircle2 size={14} className="text-success" /> Mô tả công việc
+                    </span>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {set.jobDescription}
+                    </p>
+                  </div>
+
+                  <Link to={`/interview-sets/${set._id}`} className="x-btn-ghost" style={{ justifyContent: 'center', width: '100%', borderRadius: '24px' }}>
+                    Bắt đầu luyện tập <ArrowRight size={16} />
+                  </Link>
+                </div>
+              ))}
             </div>
-            
-            <div className="x-feature-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <strong style={{ fontSize: '1.1rem' }}>Marketing Executive</strong>
-                <span className="text-success" style={{ padding: '0.25rem 0.5rem', background: 'rgba(16,185,129,0.1)', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>12 Câu hỏi</span>
-              </div>
-              <p style={{ color: 'var(--text-secondary)' }}>Kiểm tra kiến thức Digital Marketing, Content và kỹ năng lập kế hoạch chiến dịch truyền thông.</p>
-              <Link to="/register" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem', color: 'var(--teal-strong)', fontWeight: 600, textDecoration: 'none' }}>Luyện tập ngay <ArrowRight size={16} /></Link>
+            <div style={{ textAlign: 'center', marginTop: '3rem' }}>
+              <Link to="/interview-sets" className="x-btn-ghost" style={{ borderRadius: '24px' }}>Xem tất cả bộ phỏng vấn</Link>
             </div>
           </div>
-          <div style={{ textAlign: 'center', marginTop: '3rem' }}>
-            <Link to="/interview-sets" className="x-btn-ghost">Xem tất cả bộ phỏng vấn</Link>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* DASHBOARD PREVIEW */}
       <section className="x-preview-section">
@@ -306,14 +369,60 @@ export function LandingPage() {
       </section>
 
       {/* FOOTER CTA */}
-      <section className="x-footer-cta">
-        <div className="x-container centered">
-          <h2>Sẵn sàng nhận được Offer Letter?</h2>
-          <p>Hàng ngàn ứng viên đã thành công. Đến lượt bạn rồi.</p>
-          <Link to="/register" className="x-btn-primary x-btn-lg x-btn-glow" style={{ marginTop: '2rem' }}>
-            Bắt đầu luyện tập miễn phí
-            <Sparkles size={18} />
-          </Link>
+      <section className="x-footer-cta" style={{ padding: '6rem 0' }}>
+        <div className="x-container">
+          <div style={{ 
+            background: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(29, 78, 216, 0.1) 100%)', 
+            borderRadius: '24px', 
+            padding: '4rem',
+            display: 'flex',
+            gap: '4rem',
+            alignItems: 'center',
+            border: '1px solid var(--border-color)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <div style={{ flex: 1, zIndex: 1 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '24px', border: '1px solid var(--border-color)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+                <Sparkles size={14} className="text-primary" /> Miễn phí 100% để bắt đầu
+              </div>
+              <h2 style={{ fontSize: '2.5rem', marginBottom: '1.5rem', lineHeight: 1.2, color: 'var(--text-primary)' }}>Bắt đầu luyện tập ngay hôm nay và nhận việc mơ ước</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', marginBottom: '2.5rem', maxWidth: '500px' }}>
+                Thử công cụ phỏng vấn thử miễn phí ngay hôm nay. Bắt đầu luyện tập và cải thiện kỹ năng ngay lập tức.
+              </p>
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <Link to="/register" className="x-btn-primary x-btn-lg" style={{ borderRadius: '24px' }}>
+                  Đăng ký — Miễn phí <ArrowRight size={18} />
+                </Link>
+                <Link to="/login" className="x-btn-ghost x-btn-lg" style={{ borderRadius: '24px', background: 'rgba(255,255,255,0.05)' }}>
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" style={{ width: 18, height: 18, marginRight: '0.5rem' }} /> Tiếp tục với Google
+                </Link>
+              </div>
+              <div style={{ display: 'flex', gap: '1.5rem', marginTop: '2rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle2 size={14} className="text-success" /> Miễn phí</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle2 size={14} className="text-success" /> AI đánh giá sau phỏng vấn</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle2 size={14} className="text-success" /> 20,000+ câu hỏi</span>
+              </div>
+            </div>
+            
+            <div style={{ flex: 1, position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center' }} className="x-hide-mobile">
+              <div style={{ position: 'relative' }}>
+                <div style={{ position: 'absolute', top: -20, left: -40, background: 'var(--bg-card)', padding: '0.75rem 1rem', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', zIndex: 2 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }}></span> Thử phỏng vấn ngay
+                </div>
+                <img src="/dashboard-preview.png" alt="Preview" style={{ width: '100%', maxWidth: '400px', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', border: '1px solid var(--border-color)' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                <div style={{ position: 'absolute', bottom: -20, right: -20, background: 'var(--bg-card)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)', width: '250px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', zIndex: 2 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>
+                    <Sparkles size={14} className="text-primary" /> Nhận phản hồi từ AI ngay sau mỗi buổi luyện tập
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>Quy trình rõ ràng, giao diện trực quan và trải nghiệm chỉn chu giúp bạn tập trung cải thiện qua từng buổi phỏng vấn.</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Background Glows */}
+            <div style={{ position: 'absolute', top: '50%', left: '20%', width: '300px', height: '300px', background: 'var(--primary-color)', opacity: 0.1, filter: 'blur(100px)', transform: 'translate(-50%, -50%)', borderRadius: '50%' }}></div>
+          </div>
         </div>
       </section>
     </div>
