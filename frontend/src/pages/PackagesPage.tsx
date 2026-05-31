@@ -31,9 +31,10 @@ export function PackagesPage() {
   const [promotionEndTime, setPromotionEndTime] = useState<Date | null>(null);
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [transactionCode, setTransactionCode] = useState('');
-  const [transactionId, setTransactionId] = useState('');
+  const [orderCode, setOrderCode] = useState<number>(0);
+  const [currentPackageId, setCurrentPackageId] = useState('');
   const [payosInfo, setPayosInfo] = useState<{ bin: string, accountNumber: string, accountName: string, amount: number, description: string } | null>(null);
-  const [paymentStatus, setPaymentStatus] = useState<'pending'|'completed'|'cancelled'>('pending');
+  const [paymentStatus, setPaymentStatus] = useState<'idle'|'pending'|'completed'|'cancelled'>('idle');
 
   useEffect(() => {
     const fetchPackages = async () => {
@@ -79,32 +80,36 @@ export function PackagesPage() {
     return () => clearInterval(timer);
   }, [promotionEndTime]);
 
-  // Polling for payment status
+  // Polling for payment status — chỉ chạy khi modal đang mở và đang chờ thanh toán
   useEffect(() => {
-    let pollInterval: any;
-    if (isModalOpen && transactionCode && paymentStatus === 'pending') {
+    let pollInterval: ReturnType<typeof setInterval>;
+    if (isModalOpen && orderCode && transactionCode && currentPackageId && paymentStatus === 'pending') {
       pollInterval = setInterval(async () => {
         try {
-          const res = await api.get(`/transactions/status/${transactionCode}`);
+          const res = await api.post('/transactions/verify', {
+            orderCode,
+            packageId: currentPackageId,
+            transactionCode
+          });
           if (res.data.status === 'completed') {
             setPaymentStatus('completed');
             clearInterval(pollInterval);
-            alert('Thanh toán thành công! Bạn đã được cộng thêm lượt phỏng vấn.');
             setIsModalOpen(false);
-            window.location.reload(); // Reload to update user attempts in AppShell
+            alert('✅ Thanh toán thành công! Bạn đã được cộng thêm lượt phỏng vấn.');
+            window.location.reload();
           } else if (res.data.status === 'cancelled') {
             setPaymentStatus('cancelled');
             clearInterval(pollInterval);
-            alert('Giao dịch đã bị hủy.');
             setIsModalOpen(false);
+            alert('❌ Giao dịch đã bị hủy.');
           }
         } catch (error) {
           console.error('Polling error', error);
         }
-      }, 3000); // Check every 3 seconds
+      }, 3000);
     }
-    return () => clearInterval(pollInterval);
-  }, [isModalOpen, transactionCode, paymentStatus]);
+    return () => clearInterval(pollInterval!);
+  }, [isModalOpen, orderCode, transactionCode, currentPackageId, paymentStatus]);
 
   const handleSelectPackage = async (pkg: Package) => {
     if (!user) {
@@ -116,8 +121,9 @@ export function PackagesPage() {
       const res = await api.post('/transactions/create', { packageId: pkg._id });
       setSelectedPkg(pkg);
       setTransactionCode(res.data.transactionCode);
-      setTransactionId(res.data.transactionId);
-      
+      setOrderCode(res.data.orderCode);
+      setCurrentPackageId(pkg._id);
+
       setPayosInfo({
         bin: res.data.bin,
         accountNumber: res.data.accountNumber,
@@ -125,7 +131,7 @@ export function PackagesPage() {
         amount: res.data.amount,
         description: res.data.description
       });
-      
+
       setPaymentStatus('pending');
       setIsModalOpen(true);
     } catch (error: any) {

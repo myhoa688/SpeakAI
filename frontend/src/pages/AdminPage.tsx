@@ -288,7 +288,7 @@ export function AdminPage() {
               {overview.topUsers.slice(0, 3).map((item, index) => (
                 <div key={item.id} className="v2-list-item">
                   <div className="v2-user-cell">
-                    <div className="v2-avatar" style={{ background: index === 0 ? '#F59E0B' : index === 1 ? '#94A3B8' : '#B45309' }}>
+                    <div className={`v2-avatar ${index < 3 ? `rank-${index + 1}` : ''}`}>
                       #{index + 1}
                     </div>
                     <div>
