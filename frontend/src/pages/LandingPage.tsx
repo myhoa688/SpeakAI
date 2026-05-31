@@ -15,10 +15,7 @@ import {
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api } from '../lib/api';
 
-const COMPANIES = [
-  'VNG', 'Shopee', 'MoMo', 'Techcombank', 'FPT Software',
-  'Tiki', 'Grab', 'VinGroup', 'VNPT', 'Viettel', 'Zalo', 'VNPAY'
-];
+
 
 const FAQS = [
   {
@@ -56,20 +53,21 @@ const FEATURES = [
     icon: BriefcaseBusiness
   },
   {
-    title: 'Bảng xếp hạng năng lực',
-    desc: 'Biết mình đang ở đâu. Hệ thống gamification đánh giá bạn nằm trong top bao nhiêu % ứng viên.',
-    icon: Trophy
+    title: 'Lưu trữ & Dịch thuật tự động',
+    desc: 'Lưu lại toàn bộ file ghi âm phiên phỏng vấn và cung cấp bản dịch transcript chính xác giúp bạn ôn tập dễ dàng.',
+    icon: Sparkles
   }
 ];
 
 export function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [stats, setStats] = useState({
-    totalSets: 150,
-    totalAttempts: 25000,
-    totalQuestions: 15000,
-    totalCompanies: 120,
-    rating: 4.9
+    totalSets: 0,
+    totalAttempts: 0,
+    totalQuestions: 0,
+    totalCompanies: 0,
+    companies: [] as string[],
+    totalUsers: 0
   });
 
   useEffect(() => {
@@ -136,8 +134,8 @@ export function LandingPage() {
                 </div>
                 <div className="x-stat-divider" />
                 <div className="x-stat-item">
-                  <strong>{stats.rating}/5.0</strong>
-                  <span>Đánh giá học viên</span>
+                  <strong>{stats.totalUsers.toLocaleString()}+</strong>
+                  <span>Học viên tin dùng</span>
                 </div>
               </div>
             </div>
@@ -160,30 +158,25 @@ export function LandingPage() {
                   </div>
                 </div>
 
-                <div className="x-floating-card bot-card">
-                  <div className="x-fc-icon purple"><Trophy size={20} /></div>
-                  <div className="x-fc-body">
-                    <strong>Kết quả bài test</strong>
-                    <span>Bạn thuộc Top 5% ứng viên! 🚀</span>
-                  </div>
-                </div>
+
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* TRUST MARQUEE */}
-      <section className="x-marquee-section">
-        <p className="x-marquee-title">Câu hỏi được tổng hợp từ các đợt tuyển dụng của</p>
-        <div className="x-marquee-container">
-          <div className="x-marquee-content">
-            {[...COMPANIES, ...COMPANIES].map((company, i) => (
-              <span key={i} className="x-marquee-item">{company}</span>
-            ))}
+      {stats.companies && stats.companies.length > 0 && (
+        <section className="x-marquee-section">
+          <p className="x-marquee-title">Câu hỏi được tổng hợp từ các đợt tuyển dụng của</p>
+          <div className="x-marquee-container">
+            <div className="x-marquee-content">
+              {[...stats.companies, ...stats.companies, ...stats.companies, ...stats.companies].slice(0, 20).map((company, i) => (
+                <span key={i} className="x-marquee-item">{company}</span>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* FEATURES SECTION */}
       <section id="features" className="x-features-section">

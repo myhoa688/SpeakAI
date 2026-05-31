@@ -94,19 +94,27 @@ router.get('/', async (req, res) => {
  * Số liệu tổng quan cho landing page
  */
 router.get('/stats', async (_req, res) => {
-  const [totalSets, attemptsAgg] = await Promise.all([
+  const [totalSets, attemptsAgg, questionsAgg, distinctCompanies, totalUsers] = await Promise.all([
     InterviewSet.countDocuments({ isPublished: true }),
     InterviewSet.aggregate([
+      { $match: { isPublished: true } },
       { $group: { _id: null, total: { $sum: '$attemptCount' } } }
-    ])
+    ]),
+    InterviewSet.aggregate([
+      { $match: { isPublished: true } },
+      { $group: { _id: null, total: { $sum: '$questionCount' } } }
+    ]),
+    InterviewSet.distinct('company', { isPublished: true, company: { $nin: ['', null] } }),
+    User.countDocuments()
   ]);
 
   return res.json({
     totalSets,
     totalAttempts: attemptsAgg[0]?.total ?? 0,
-    totalQuestions: 20000,
-    totalCompanies: 129,
-    rating: 4.9
+    totalQuestions: questionsAgg[0]?.total ?? 0,
+    totalCompanies: distinctCompanies.length,
+    companies: distinctCompanies,
+    totalUsers
   });
 });
 
