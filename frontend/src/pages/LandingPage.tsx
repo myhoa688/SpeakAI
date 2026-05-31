@@ -5,20 +5,18 @@ import {
   BriefcaseBusiness,
   CheckCircle2,
   ChevronDown,
-  LayoutDashboard,
+  ChevronRight,
   Mic2,
   Sparkles,
   Target,
-  Trophy,
-  Users,
-  PlayCircle,
-  HelpCircle,
-  Clock
+  Clock,
+  BarChart2,
+  BookOpen,
+  FileText,
+  Headphones,
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api } from '../lib/api';
-
-
 
 const FAQS = [
   {
@@ -27,7 +25,7 @@ const FAQS = [
   },
   {
     q: 'Câu hỏi phỏng vấn được lấy từ đâu?',
-    a: 'Ngân hàng câu hỏi được tổng hợp từ JD thực tế của hơn 100+ công ty hàng đầu (VNG, Shopee, Techcombank...) và liên tục cập nhật bởi AI.'
+    a: 'Ngân hàng câu hỏi được tổng hợp từ JD thực tế của các công ty hàng đầu và liên tục cập nhật bởi AI.'
   },
   {
     q: 'Hệ thống có hỗ trợ tiếng Việt không?',
@@ -35,32 +33,56 @@ const FAQS = [
   },
   {
     q: 'Tôi có thể dùng thử miễn phí không?',
-    a: 'Bạn có thể tạo tài khoản và nhận ngay 5 lượt luyện tập miễn phí mỗi ngày. Nâng cấp lên gói Pro để không giới hạn lượt tập.'
+    a: 'Bạn có thể tạo tài khoản và nhận ngay lượt luyện tập miễn phí. Nâng cấp lên gói Pro để trải nghiệm không giới hạn.'
   }
 ];
 
 const FEATURES = [
   {
-    title: 'Phòng phỏng vấn Realtime',
-    desc: 'Trải nghiệm áp lực phỏng vấn thật với AI. Trả lời bằng giọng nói, AI sẽ phản hồi và hỏi xoáy sâu ngay lập tức.',
-    icon: Mic2
+    title: 'Phỏng vấn thực chiến với AI',
+    desc: 'Trả lời câu hỏi bằng giọng nói, AI lắng nghe và phân tích câu trả lời của bạn theo thời gian thực.',
+    icon: Mic2,
+    color: '#6366f1'
   },
   {
-    title: 'Phân tích & Chấm điểm',
-    desc: 'Báo cáo chi tiết về tốc độ nói (WPM), khoảng dừng, từ thừa (filler words) và cấu trúc câu trả lời.',
-    icon: Target
+    title: 'Phân tích & Chấm điểm chi tiết',
+    desc: 'Nhận báo cáo về nội dung, cấu trúc câu trả lời và gợi ý cải thiện cụ thể sau mỗi phiên.',
+    icon: BarChart2,
+    color: '#10b981'
   },
   {
-    title: 'Bộ câu hỏi theo JD thực tế',
-    desc: 'Hàng ngàn bộ phỏng vấn được thiết kế chuẩn xác theo từng vị trí của các công ty công nghệ, tài chính hàng đầu.',
-    icon: BriefcaseBusiness
+    title: 'Ngân hàng câu hỏi thực tế',
+    desc: 'Hàng trăm câu hỏi được phân loại theo ngành nghề, vị trí và mức độ kinh nghiệm.',
+    icon: BookOpen,
+    color: '#f59e0b'
   },
   {
-    title: 'Lưu trữ & Dịch thuật tự động',
-    desc: 'Lưu lại toàn bộ file ghi âm phiên phỏng vấn và cung cấp bản dịch transcript chính xác giúp bạn ôn tập dễ dàng.',
-    icon: Sparkles
+    title: 'Lưu trữ & Transcript tự động',
+    desc: 'Lưu lại toàn bộ phiên luyện tập kèm transcript chính xác để ôn tập về sau.',
+    icon: Headphones,
+    color: '#ec4899'
   }
 ];
+
+const diffLabel = (d: string) => d === 'hard' ? 'Khó' : d === 'medium' ? 'Trung Bình' : 'Dễ';
+const diffColor = (d: string) => d === 'hard' ? '#ef4444' : d === 'medium' ? '#f59e0b' : '#10b981';
+const diffBg   = (d: string) => d === 'hard' ? 'rgba(239,68,68,0.12)' : d === 'medium' ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.12)';
+
+function AvatarLetter({ name }: { name: string }) {
+  const letter = (name || 'S').charAt(0).toUpperCase();
+  const colors = ['#6366f1','#10b981','#f59e0b','#ec4899','#3b82f6','#8b5cf6'];
+  const color  = colors[letter.charCodeAt(0) % colors.length];
+  return (
+    <div style={{
+      width: 48, height: 48, borderRadius: 12,
+      background: color + '22', border: `1px solid ${color}44`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: '1.25rem', fontWeight: 700, color, flexShrink: 0
+    }}>
+      {letter}
+    </div>
+  );
+}
 
 export function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -116,30 +138,30 @@ export function LandingPage() {
                 Vượt qua mọi vòng phỏng vấn với <span>Sự Tự Tin</span>
               </h1>
               <p className="x-hero-desc">
-                Luyện tập trả lời phỏng vấn bằng giọng nói với AI. Nhận phản hồi chi tiết về phát âm, nội dung và phản xạ ngay lập tức. Sẵn sàng chinh phục mọi nhà tuyển dụng.
+                Luyện tập trả lời phỏng vấn bằng giọng nói với AI. Nhận phản hồi chi tiết về nội dung và cấu trúc câu trả lời ngay lập tức.
               </p>
               <div className="x-hero-cta-group">
                 <Link to="/register" className="x-btn-primary x-btn-lg">
                   Luyện tập ngay miễn phí
                   <ArrowRight size={18} />
                 </Link>
-                <p className="x-hero-micro">Không cần thẻ tín dụng • Miễn phí 5 lượt/ngày</p>
+                <p className="x-hero-micro">Không cần thẻ tín dụng • Miễn phí</p>
               </div>
 
               {/* Stats Ribbon */}
               <div className="x-stats-ribbon">
                 <div className="x-stat-item">
-                  <strong>{stats.totalQuestions.toLocaleString()}+</strong>
+                  <strong>{stats.totalQuestions > 0 ? `${stats.totalQuestions.toLocaleString()}+` : '—'}</strong>
                   <span>Câu hỏi phỏng vấn</span>
                 </div>
                 <div className="x-stat-divider" />
                 <div className="x-stat-item">
-                  <strong>{stats.totalAttempts.toLocaleString()}+</strong>
+                  <strong>{stats.totalAttempts > 0 ? `${stats.totalAttempts.toLocaleString()}+` : '—'}</strong>
                   <span>Lượt luyện tập</span>
                 </div>
                 <div className="x-stat-divider" />
                 <div className="x-stat-item">
-                  <strong>{stats.totalUsers.toLocaleString()}+</strong>
+                  <strong>{stats.totalUsers > 0 ? `${stats.totalUsers.toLocaleString()}+` : '—'}</strong>
                   <span>Học viên tin dùng</span>
                 </div>
               </div>
@@ -150,32 +172,30 @@ export function LandingPage() {
                 <div className="x-floating-card top-card">
                   <div className="x-fc-icon"><BriefcaseBusiness size={20} /></div>
                   <div className="x-fc-body">
-                    <strong>VNG - Frontend Developer</strong>
+                    <strong>AI Interviewer</strong>
                     <span>Đang mô phỏng phỏng vấn...</span>
                   </div>
                 </div>
-                
                 <div className="x-floating-card mid-card">
                   <div className="x-fc-icon green"><CheckCircle2 size={20} /></div>
                   <div className="x-fc-body">
-                    <strong>Phân tích giọng nói</strong>
-                    <span>Tốc độ: 125 WPM (Tuyệt vời)</span>
+                    <strong>Phân tích câu trả lời</strong>
+                    <span>Cấu trúc STAR: Rõ ràng ✓</span>
                   </div>
                 </div>
-
-
               </div>
             </div>
           </div>
         </div>
       </section>
 
+      {/* MARQUEE - only if real companies exist */}
       {stats.companies && stats.companies.length > 0 && (
         <section className="x-marquee-section">
           <p className="x-marquee-title">Câu hỏi được tổng hợp từ các đợt tuyển dụng của</p>
           <div className="x-marquee-container">
             <div className="x-marquee-content">
-              {[...stats.companies, ...stats.companies, ...stats.companies, ...stats.companies].slice(0, 20).map((company, i) => (
+              {[...stats.companies, ...stats.companies, ...stats.companies].map((company, i) => (
                 <span key={i} className="x-marquee-item">{company}</span>
               ))}
             </div>
@@ -190,14 +210,13 @@ export function LandingPage() {
             <h2 className="x-section-title">Nâng cấp kỹ năng toàn diện</h2>
             <p className="x-section-desc">SpeakAI mang đến trải nghiệm phỏng vấn sát với thực tế nhất.</p>
           </div>
-
           <div className="x-features-grid">
             {FEATURES.map((feat, i) => {
               const Icon = feat.icon;
               return (
                 <div key={i} className="x-feature-card">
-                  <div className="x-feature-icon-wrapper">
-                    <Icon size={24} />
+                  <div className="x-feature-icon-wrapper" style={{ background: feat.color + '18', border: `1px solid ${feat.color}33` }}>
+                    <Icon size={22} style={{ color: feat.color }} />
                   </div>
                   <h3>{feat.title}</h3>
                   <p>{feat.desc}</p>
@@ -208,138 +227,175 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* POPULAR QUESTIONS SECTION */}
+      {/* POPULAR QUESTIONS - styled exactly like the Question Bank page */}
       {stats.popularQuestions && stats.popularQuestions.length > 0 && (
-        <section id="popular-questions" className="x-features-section">
+        <section id="popular-questions" style={{ padding: '5rem 0', background: 'transparent' }}>
           <div className="x-container">
-            <div className="x-section-header">
-              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--teal-strong)', textTransform: 'uppercase', letterSpacing: '1px' }}>Luyện tập ngay</span>
-              <h2 className="x-section-title" style={{ textAlign: 'left', marginTop: '0.5rem' }}>Câu hỏi phổ biến</h2>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '2.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <p style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--teal-strong)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '0.5rem' }}>Luyện tập ngay</p>
+                <h2 style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Câu hỏi phổ biến</h2>
+              </div>
+              <Link to="/practice" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', color: 'var(--teal-strong)', fontWeight: 600, textDecoration: 'none' }}>
+                Xem tất cả <ChevronRight size={16} />
+              </Link>
             </div>
-            
-            <div className="x-features-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1rem' }}>
-              {stats.popularQuestions.map((q, i) => (
-                <div key={i} className="x-feature-card" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', flex: 1 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-color)' }}>
-                      <HelpCircle size={16} style={{ color: 'var(--text-secondary)' }} />
-                    </div>
-                    <div>
-                      <strong style={{ fontSize: '1rem', display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>{q.question}</strong>
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{q.industryGroup || 'General'}</span>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: q.difficulty === 'hard' ? '#ef4444' : q.difficulty === 'medium' ? '#f59e0b' : '#10b981', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px' }}>
-                          {q.difficulty.toUpperCase()}
-                        </span>
-                      </div>
+
+            {/* List layout - giống trang Question Bank */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {stats.popularQuestions.map((q: any, i: number) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: '1.5rem',
+                  padding: '1.25rem 1.5rem',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '12px',
+                  transition: 'border-color 0.2s, transform 0.2s',
+                  cursor: 'default'
+                }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--teal-strong)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-color)'; (e.currentTarget as HTMLElement).style.transform = 'none'; }}
+                >
+                  {/* Icon */}
+                  <div style={{
+                    width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                  }}>
+                    <Target size={16} style={{ color: 'var(--text-secondary)' }} />
+                  </div>
+
+                  {/* Question text */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {q.question}
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{q.industryGroup || 'Chung'}</span>
+                      {q.tags?.slice(0, 2).map((tag: string, ti: number) => (
+                        <span key={ti} style={{
+                          fontSize: '0.7rem', padding: '1px 7px', borderRadius: '4px',
+                          background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)',
+                          border: '1px solid var(--border-color)'
+                        }}>{tag}</span>
+                      ))}
+                      <span style={{
+                        fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px',
+                        color: diffColor(q.difficulty), background: diffBg(q.difficulty)
+                      }}>{diffLabel(q.difficulty)}</span>
                     </div>
                   </div>
-                  <Link to={`/practice`} className="x-btn-ghost" style={{ fontSize: '0.875rem', padding: '0.5rem 1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <Mic2 size={14} /> Thử ngay
+
+                  {/* CTA */}
+                  <Link to="/practice" style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.5rem 1.1rem', borderRadius: '8px',
+                    background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 600,
+                    textDecoration: 'none', flexShrink: 0, whiteSpace: 'nowrap',
+                    transition: 'background 0.2s, border-color 0.2s'
+                  }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--teal-strong)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--teal-strong)'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-color)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+                  >
+                    <Mic2 size={14} /> Luyện tập
                   </Link>
                 </div>
               ))}
-            </div>
-            <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-              <Link to="/practice" className="x-btn-ghost" style={{ borderRadius: '24px' }}>Xem tất cả Câu hỏi <ArrowRight size={16} /></Link>
             </div>
           </div>
         </section>
       )}
 
-      {/* INTERVIEW SETS SECTION */}
+      {/* FEATURED INTERVIEW SETS - styled exactly like /interview-sets page */}
       {stats.featuredSets && stats.featuredSets.length > 0 && (
-        <section id="interview-sets" className="x-features-section" style={{ background: 'transparent' }}>
+        <section id="interview-sets" style={{ padding: '5rem 0', background: 'var(--bg-secondary, rgba(255,255,255,0.02))' }}>
           <div className="x-container">
-            <div className="x-section-header centered">
-              <h2 className="x-section-title">Bộ phỏng vấn nổi bật</h2>
-              <p className="x-section-desc">Luyện tập theo bộ câu hỏi thực tế từ các kỳ thi tuyển dụng.</p>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '2.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <p style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--teal-strong)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '0.5rem' }}>Bộ phỏng vấn</p>
+                <h2 style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Nổi bật nhất</h2>
+              </div>
+              <Link to="/interview-sets" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', color: 'var(--teal-strong)', fontWeight: 600, textDecoration: 'none' }}>
+                Xem tất cả <ChevronRight size={16} />
+              </Link>
             </div>
-            
-            <div className="x-features-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
-              {stats.featuredSets.map((set, i) => (
-                <div key={i} className="x-feature-card" style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-                    <div style={{ width: 48, height: 48, borderRadius: '12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <BriefcaseBusiness size={20} className="text-primary" />
-                    </div>
-                    <div>
-                      <strong style={{ fontSize: '1.1rem', display: 'block', color: 'var(--text-primary)' }}>{set.title}</strong>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{set.company}</span>
+
+            {/* 2-column grid giống trang /interview-sets */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: '1.25rem' }}>
+              {stats.featuredSets.map((set: any, i: number) => (
+                <div key={i} style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '16px',
+                  padding: '1.75rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transition: 'border-color 0.2s, transform 0.2s'
+                }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(99,102,241,0.4)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-color)'; (e.currentTarget as HTMLElement).style.transform = 'none'; }}
+                >
+                  {/* Header: avatar + title */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', marginBottom: '1.25rem' }}>
+                    <AvatarLetter name={set.title} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <h3 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {set.title}
+                      </h3>
+                      <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{set.company}</p>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-color)' }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <strong style={{ display: 'block', fontSize: '1.1rem' }}>{set.questionCount}</strong>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Câu hỏi</span>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <strong style={{ display: 'block', fontSize: '1.1rem' }}>{set.durationMinutes}</strong>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Phút</span>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <strong style={{ display: 'block', fontSize: '1.1rem', color: set.difficulty === 'hard' ? '#ef4444' : set.difficulty === 'medium' ? '#f59e0b' : '#10b981', textTransform: 'capitalize' }}>
-                        {set.difficulty === 'hard' ? 'Khó' : set.difficulty === 'medium' ? 'T.Bình' : 'Dễ'}
-                      </strong>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Độ khó</span>
-                    </div>
+                  {/* Stats row */}
+                  <div style={{
+                    display: 'flex', gap: '2rem', paddingBottom: '1.25rem',
+                    borderBottom: '1px solid var(--border-color)', marginBottom: '1.25rem'
+                  }}>
+                    {[
+                      { value: set.questionCount, label: 'CÂU HỎI' },
+                      { value: set.durationMinutes, label: 'PHÚT' },
+                      { value: diffLabel(set.difficulty), label: 'ĐỘ KHÓ', color: diffColor(set.difficulty) }
+                    ].map((stat, si) => (
+                      <div key={si}>
+                        <p style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: stat.color || 'var(--text-primary)' }}>{stat.value}</p>
+                        <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--text-secondary)', letterSpacing: '0.5px', marginTop: '2px' }}>{stat.label}</p>
+                      </div>
+                    ))}
                   </div>
 
+                  {/* Job description preview */}
                   <div style={{ flex: 1, marginBottom: '1.5rem' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                      <CheckCircle2 size={14} className="text-success" /> Mô tả công việc
-                    </span>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <FileText size={13} /> MÔ TẢ CÔNG VIỆC
+                    </p>
+                    <p style={{
+                      margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6,
+                      display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden'
+                    }}>
                       {set.jobDescription}
                     </p>
                   </div>
 
-                  <Link to={`/interview-sets/${set._id}`} className="x-btn-ghost" style={{ justifyContent: 'center', width: '100%', borderRadius: '24px' }}>
+                  {/* CTA button */}
+                  <Link to={`/interview-sets/${set._id}`} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                    padding: '0.75rem 1.5rem', borderRadius: '10px',
+                    background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)', fontWeight: 600, textDecoration: 'none', fontSize: '0.9rem',
+                    transition: 'background 0.2s'
+                  }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.15)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(99,102,241,0.4)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-color)'; }}
+                  >
                     Bắt đầu luyện tập <ArrowRight size={16} />
                   </Link>
                 </div>
               ))}
             </div>
-            <div style={{ textAlign: 'center', marginTop: '3rem' }}>
-              <Link to="/interview-sets" className="x-btn-ghost" style={{ borderRadius: '24px' }}>Xem tất cả bộ phỏng vấn</Link>
-            </div>
           </div>
         </section>
       )}
-
-      {/* DASHBOARD PREVIEW */}
-      <section className="x-preview-section">
-        <div className="x-container">
-          <div className="x-preview-box">
-            <div className="x-preview-content">
-              <h2>Mọi thứ bạn cần trong một Dashboard</h2>
-              <p>Quản lý lịch sử, theo dõi sự tiến bộ qua từng ngày và xem chi tiết đánh giá cho mỗi câu trả lời.</p>
-              <ul className="x-check-list">
-                <li><CheckCircle2 size={18} className="text-success" /> Lưu trữ âm thanh mọi phiên luyện</li>
-                <li><CheckCircle2 size={18} className="text-success" /> Bản dịch transcript chính xác</li>
-                <li><CheckCircle2 size={18} className="text-success" /> Gợi ý câu trả lời tốt hơn (Mẫu STAR)</li>
-              </ul>
-              <Link to="/register" className="x-btn-primary" style={{ marginTop: '1.5rem' }}>
-                Khám phá ngay <ArrowRight size={18} />
-              </Link>
-            </div>
-            <div className="x-preview-image">
-              <div className="x-mock-dashboard">
-                <div className="x-mock-header"><LayoutDashboard size={16}/> SpeakAI Dashboard</div>
-                <div className="x-mock-body">
-                  <div className="x-mock-chart"></div>
-                  <div className="x-mock-list">
-                    <div className="x-mock-item"></div>
-                    <div className="x-mock-item"></div>
-                    <div className="x-mock-item"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* FAQ SECTION */}
       <section id="faq" className="x-faq-section">
@@ -347,11 +403,10 @@ export function LandingPage() {
           <div className="x-section-header centered">
             <h2 className="x-section-title">Câu hỏi thường gặp</h2>
           </div>
-          
           <div className="x-faq-list">
             {FAQS.map((faq, i) => (
-              <div 
-                key={i} 
+              <div
+                key={i}
                 className={`x-faq-item ${openFaq === i ? 'active' : ''}`}
                 onClick={() => setOpenFaq(openFaq === i ? null : i)}
               >
@@ -369,59 +424,48 @@ export function LandingPage() {
       </section>
 
       {/* FOOTER CTA */}
-      <section className="x-footer-cta" style={{ padding: '6rem 0' }}>
+      <section style={{ padding: '5rem 0' }}>
         <div className="x-container">
-          <div style={{ 
-            background: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(29, 78, 216, 0.1) 100%)', 
-            borderRadius: '24px', 
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(16,185,129,0.08) 100%)',
+            borderRadius: '20px',
             padding: '4rem',
-            display: 'flex',
-            gap: '4rem',
-            alignItems: 'center',
-            border: '1px solid var(--border-color)',
+            textAlign: 'center',
+            border: '1px solid rgba(99,102,241,0.2)',
             position: 'relative',
             overflow: 'hidden'
           }}>
-            <div style={{ flex: 1, zIndex: 1 }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '24px', border: '1px solid var(--border-color)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
-                <Sparkles size={14} className="text-primary" /> Miễn phí 100% để bắt đầu
+            <div style={{ position: 'absolute', top: '50%', left: '50%', width: '400px', height: '400px', background: 'rgba(99,102,241,0.08)', filter: 'blur(80px)', transform: 'translate(-50%, -50%)', borderRadius: '50%', pointerEvents: 'none' }} />
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 1rem', background: 'rgba(99,102,241,0.1)', borderRadius: '24px', border: '1px solid rgba(99,102,241,0.3)', marginBottom: '1.5rem', fontSize: '0.8rem', fontWeight: 600, color: '#818cf8' }}>
+                <Sparkles size={13} /> Miễn phí 100% để bắt đầu
               </div>
-              <h2 style={{ fontSize: '2.5rem', marginBottom: '1.5rem', lineHeight: 1.2, color: 'var(--text-primary)' }}>Bắt đầu luyện tập ngay hôm nay và nhận việc mơ ước</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', marginBottom: '2.5rem', maxWidth: '500px' }}>
-                Thử công cụ phỏng vấn thử miễn phí ngay hôm nay. Bắt đầu luyện tập và cải thiện kỹ năng ngay lập tức.
+              <h2 style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1rem', lineHeight: 1.2 }}>
+                Bắt đầu luyện tập ngay hôm nay
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', marginBottom: '2.5rem', maxWidth: '500px', margin: '0 auto 2.5rem' }}>
+                Hàng chục ứng viên đã cải thiện kỹ năng với SpeakAI. Đến lượt bạn rồi.
               </p>
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                <Link to="/register" className="x-btn-primary x-btn-lg" style={{ borderRadius: '24px' }}>
-                  Đăng ký — Miễn phí <ArrowRight size={18} />
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Link to="/register" className="x-btn-primary x-btn-lg" style={{ borderRadius: '12px' }}>
+                  Đăng ký miễn phí <ArrowRight size={18} />
                 </Link>
-                <Link to="/login" className="x-btn-ghost x-btn-lg" style={{ borderRadius: '24px', background: 'rgba(255,255,255,0.05)' }}>
-                  <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" style={{ width: 18, height: 18, marginRight: '0.5rem' }} /> Tiếp tục với Google
+                <Link to="/login" className="x-btn-ghost x-btn-lg" style={{ borderRadius: '12px' }}>
+                  Đăng nhập
                 </Link>
               </div>
-              <div style={{ display: 'flex', gap: '1.5rem', marginTop: '2rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle2 size={14} className="text-success" /> Miễn phí</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle2 size={14} className="text-success" /> AI đánh giá sau phỏng vấn</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle2 size={14} className="text-success" /> 20,000+ câu hỏi</span>
+              <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', marginTop: '2rem', flexWrap: 'wrap' }}>
+                {[
+                  { icon: CheckCircle2, text: 'Miễn phí hoàn toàn' },
+                  { icon: CheckCircle2, text: 'AI đánh giá tức thì' },
+                  { icon: CheckCircle2, text: 'Không cần thẻ tín dụng' }
+                ].map((item, i) => (
+                  <span key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    <item.icon size={14} style={{ color: '#10b981' }} /> {item.text}
+                  </span>
+                ))}
               </div>
             </div>
-            
-            <div style={{ flex: 1, position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center' }} className="x-hide-mobile">
-              <div style={{ position: 'relative' }}>
-                <div style={{ position: 'absolute', top: -20, left: -40, background: 'var(--bg-card)', padding: '0.75rem 1rem', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', zIndex: 2 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }}></span> Thử phỏng vấn ngay
-                </div>
-                <img src="/dashboard-preview.png" alt="Preview" style={{ width: '100%', maxWidth: '400px', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', border: '1px solid var(--border-color)' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                <div style={{ position: 'absolute', bottom: -20, right: -20, background: 'var(--bg-card)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)', width: '250px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', zIndex: 2 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>
-                    <Sparkles size={14} className="text-primary" /> Nhận phản hồi từ AI ngay sau mỗi buổi luyện tập
-                  </div>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>Quy trình rõ ràng, giao diện trực quan và trải nghiệm chỉn chu giúp bạn tập trung cải thiện qua từng buổi phỏng vấn.</p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Background Glows */}
-            <div style={{ position: 'absolute', top: '50%', left: '20%', width: '300px', height: '300px', background: 'var(--primary-color)', opacity: 0.1, filter: 'blur(100px)', transform: 'translate(-50%, -50%)', borderRadius: '50%' }}></div>
           </div>
         </div>
       </section>

@@ -144,6 +144,14 @@ export function AdminPackagesPage() {
         </div>
       </header>
 
+      {/* Expiry Banner */}
+      {promotionEndTime && new Date(promotionEndTime).getTime() < Date.now() && (
+        <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', border: '1px solid #EF4444', color: '#FECACA', padding: '1rem 1.5rem', borderRadius: '8px', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 500 }}>
+          <div style={{ color: '#EF4444' }}><XCircle size={24} /></div>
+          Thời gian khuyến mãi đã kết thúc. Các gói dịch vụ hiện đang bị ẩn đối với người dùng. Vui lòng gia hạn thời gian khuyến mãi mới!
+        </div>
+      )}
+
       <section className="panel-card" style={{ padding: '1.5rem' }}>
         {isLoading ? (
           <p>Đang tải...</p>
@@ -179,13 +187,17 @@ export function AdminPackagesPage() {
                       {pkg.isPopular ? <span className="badge badge-primary">Phổ biến</span> : '-'}
                     </td>
                     <td style={{ padding: '1rem' }}>
-                      {pkg.active ? (
-                        <span style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <CheckCircle2 size={16} /> Hoạt động
-                        </span>
-                      ) : (
+                      {!pkg.active ? (
                         <span style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <XCircle size={16} /> Vô hiệu
+                        </span>
+                      ) : (promotionEndTime && new Date(promotionEndTime).getTime() < Date.now()) ? (
+                        <span style={{ color: '#F59E0B', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <XCircle size={16} /> Hết hạn (Đang ẩn)
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <CheckCircle2 size={16} /> Hoạt động
                         </span>
                       )}
                     </td>
@@ -203,7 +215,7 @@ export function AdminPackagesPage() {
 
       {isModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '600px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className="modal-content" style={{ maxWidth: '800px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ marginBottom: '1.5rem' }}>{editingPkg ? 'Sửa gói dịch vụ' : 'Thêm gói mới'}</h3>
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

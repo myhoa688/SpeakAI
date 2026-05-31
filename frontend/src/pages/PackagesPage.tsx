@@ -35,6 +35,7 @@ export function PackagesPage() {
   const [currentPackageId, setCurrentPackageId] = useState('');
   const [payosInfo, setPayosInfo] = useState<{ bin: string, accountNumber: string, accountName: string, amount: number, description: string } | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle'|'pending'|'completed'|'cancelled'>('idle');
+  const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
     const fetchPackages = async () => {
@@ -45,7 +46,11 @@ export function PackagesPage() {
         ]);
         setPackages(pkgRes.data.packages);
         if (promoRes.data.endTime) {
-          setPromotionEndTime(new Date(promoRes.data.endTime));
+          const end = new Date(promoRes.data.endTime);
+          setPromotionEndTime(end);
+          if (end.getTime() < new Date().getTime()) {
+            setIsExpired(true);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch packages:', error);
@@ -66,8 +71,10 @@ export function PackagesPage() {
       if (distance < 0) {
         clearInterval(timer);
         setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+        setIsExpired(true);
         return;
       }
+      setIsExpired(false);
 
       setTimeLeft({
         days: Math.floor(distance / (1000 * 60 * 60 * 24)),
@@ -294,45 +301,53 @@ export function PackagesPage() {
               </div>
               <h2 style={{ fontSize: '1.8rem', margin: '0 0 3rem 0', fontWeight: 800 }}>So sánh nhanh các gói</h2>
 
-              <div style={{ 
-                display: 'flex', 
-                gap: '1.5rem',
-                justifyContent: 'center',
-                alignItems: 'stretch',
-                width: '100%'
-              }}>
-                {packages.map((pkg, idx) => {
-                  const isPopular = pkg.isPopular || idx === 1; // Fallback to middle if none marked
-                  return (
-                  <div key={pkg._id} style={{
-                    backgroundColor: '#161821', // Dark blue-ish gray
-                    border: isPopular ? '1px solid #6366f1' : '1px solid #2d3142',
-                    borderRadius: '16px',
-                    padding: '2.5rem 2rem',
-                    position: 'relative',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    flex: 1,
-                    maxWidth: '320px'
-                  }}>
-                    {isPopular && (
-                      <div style={{
-                        position: 'absolute',
-                        top: '-14px',
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        backgroundColor: '#6366f1',
-                        color: 'white',
-                        padding: '6px 20px',
-                        borderRadius: '99px',
-                        fontSize: '0.75rem',
-                        fontWeight: '700',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px'
-                      }}>
-                        Phổ biến nhất
-                      </div>
-                    )}
+              {isExpired ? (
+                <div style={{ textAlign: 'center', padding: '4rem 2rem', width: '100%' }}>
+                  <h3 style={{ color: 'rgba(255,255,255,0.5)', fontSize: '1.25rem', fontWeight: 500 }}>Hiện chưa có gói dịch vụ nào.</h3>
+                </div>
+              ) : (
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1.5rem',
+                  justifyContent: 'center',
+                  alignItems: 'stretch',
+                  width: '100%',
+                  flexWrap: 'wrap'
+                }}>
+                  {packages.map((pkg, idx) => {
+                    const isPopular = pkg.isPopular; // STRICTLY FROM DB
+                    return (
+                    <div key={pkg._id} style={{
+                      backgroundColor: '#161821', // Dark blue-ish gray
+                      border: isPopular ? `1px solid ${pkg.color || '#6366f1'}` : '1px solid #2d3142',
+                      boxShadow: isPopular ? `0 0 20px ${pkg.color || '#6366f1'}33` : 'none',
+                      borderRadius: '16px',
+                      padding: '2.5rem 2rem',
+                      position: 'relative',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      flex: 1,
+                      minWidth: '280px',
+                      maxWidth: '320px'
+                    }}>
+                      {isPopular && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '-14px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          backgroundColor: pkg.color || '#6366f1',
+                          color: 'white',
+                          padding: '6px 20px',
+                          borderRadius: '99px',
+                          fontSize: '0.75rem',
+                          fontWeight: '700',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}>
+                          Phổ biến nhất
+                        </div>
+                      )}
 
                     <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontWeight: 700 }}>{pkg.name}</h3>
                     
@@ -372,8 +387,8 @@ export function PackagesPage() {
                     <button 
                       onClick={() => handleSelectPackage(pkg)}
                       style={{
-                        backgroundColor: isPopular ? '#6366f1' : 'transparent',
-                        border: isPopular ? '1px solid #6366f1' : '1px solid rgba(255,255,255,0.2)',
+                        backgroundColor: isPopular ? (pkg.color || '#6366f1') : 'transparent',
+                        border: isPopular ? `1px solid ${pkg.color || '#6366f1'}` : '1px solid rgba(255,255,255,0.2)',
                         color: 'white',
                         padding: '0.8rem',
                         borderRadius: '8px',
@@ -391,6 +406,7 @@ export function PackagesPage() {
                   </div>
                 )})}
               </div>
+              )}
             </div>
           </div>
         )}
