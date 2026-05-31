@@ -21,6 +21,19 @@ export function ProfilePage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'history' && transactions.length === 0) {
+      setLoadingTransactions(true);
+      api.get('/transactions/my-history')
+        .then(res => setTransactions(res.data.transactions || []))
+        .catch(err => console.error('Failed to fetch transactions', err))
+        .finally(() => setLoadingTransactions(false));
+    }
+  }, [activeTab]);
+
   useEffect(() => {
     if (!user) return;
     setForm({
@@ -237,14 +250,55 @@ export function ProfilePage() {
             <ReceiptText size={18} className="profile-accordion-icon" />
             {t('profilePage.purchaseHistory', 'Lịch sử mua hàng')}
           </div>
-          <div className="profile-empty-state">
-            <div className="profile-empty-icon">
-              <ReceiptText size={24} />
+          
+          {loadingTransactions ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.5)' }}>Đang tải...</div>
+          ) : transactions.length > 0 ? (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', textAlign: 'left' }}>
+                    <th style={{ padding: '12px 16px', fontWeight: 500 }}>Mã giao dịch</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 500 }}>Gói dịch vụ</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 500 }}>Số tiền</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 500 }}>Ngày giao dịch</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 500 }}>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map(tx => (
+                    <tr key={tx._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '16px', fontFamily: 'monospace' }}>{tx.transactionCode || tx.orderCode}</td>
+                      <td style={{ padding: '16px' }}>{tx.packageId?.name || 'Gói dịch vụ'}</td>
+                      <td style={{ padding: '16px' }}>{tx.amount?.toLocaleString('vi-VN')} đ</td>
+                      <td style={{ padding: '16px' }}>{new Date(tx.createdAt).toLocaleDateString('vi-VN')}</td>
+                      <td style={{ padding: '16px' }}>
+                        <span style={{
+                          padding: '4px 10px',
+                          borderRadius: '100px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          backgroundColor: tx.status === 'completed' ? 'rgba(34,197,94,0.1)' : tx.status === 'cancelled' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+                          color: tx.status === 'completed' ? '#22c55e' : tx.status === 'cancelled' ? '#ef4444' : '#f59e0b'
+                        }}>
+                          {tx.status === 'completed' ? 'Thành công' : tx.status === 'cancelled' ? 'Đã hủy' : 'Đang xử lý'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="profile-empty-text">
-              {t('profilePage.noPurchaseHistory', 'Chưa có lịch sử mua hàng')}
+          ) : (
+            <div className="profile-empty-state">
+              <div className="profile-empty-icon">
+                <ReceiptText size={24} />
+              </div>
+              <div className="profile-empty-text">
+                {t('profilePage.noPurchaseHistory', 'Chưa có lịch sử mua hàng')}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>

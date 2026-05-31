@@ -75,16 +75,59 @@ router.post('/create', authRequired, async (req, res) => {
   }
 });
 
-// ─── Kiểm tra trạng thái giao dịch (Polling) ─────────────────────────────────
+// Lấy lịch sử giao dịch của user hiện tại
+router.get('/my-history', authRequired, async (req, res) => {
+  try {
+    const user = req.user!;
+    const transactions = await Transaction.find({ userId: user._id })
+      .populate('packageId', 'name price')
+      .sort({ createdAt: -1 });
+    return res.json({ transactions });
+  } catch (error) {
+    logger.error(`[transactions my-history] ${error}`);
+    return res.status(500).json({ message: 'Lỗi khi lấy lịch sử giao dịch.' });
+  }
+});
+
+// Kiểm tra trạng thái giao dịch (Polling)
 router.get('/status/:code', authRequired, async (req, res) => {
   try {
-    const transaction = await Transaction.findOne({ transactionCode: req.params.code });
+    const transaction = await Transaction.findOne({ transactionCode: req.params.code }).populate('packageId');
     if (!transaction) {
       return res.status(404).json({ message: 'Không tìm thấy giao dịch.' });
     }
 
+    // Nếu vẫn đang chờ xử lý, chủ động hỏi thẳng PayOS (giải quyết triệt để webhook trên localhost)
+    if (transaction.status === 'pending') {
+      try {
+        const payosData = await payos.paymentRequests.get(String(transaction.orderCode));
+        if (payosData) {
+          if (payosData.status === 'PAID') {
+            transaction.status = 'completed';
+            await transaction.save();
+
+            // Cộng lượt cho user tự động
+            const dbUser = await User.findById(transaction.userId);
+            if (dbUser && transaction.packageId) {
+              const pkg = transaction.packageId as any;
+              dbUser.remainingInterviews = (dbUser.remainingInterviews ?? 0) + pkg.interviewAttempts;
+              dbUser.planLabel = pkg.name;
+              await dbUser.save();
+              logger.info(`[PayOS Polling] Đã chốt đơn tự động cho user ${dbUser.email} gói ${pkg.name}`);
+            }
+          } else if (payosData.status === 'CANCELLED') {
+            transaction.status = 'cancelled';
+            await transaction.save();
+          }
+        }
+      } catch (payosErr) {
+        logger.warn(`[PayOS Polling] Lỗi khi lấy thông tin giao dịch từ PayOS: ${payosErr}`);
+      }
+    }
+
     return res.json({ status: transaction.status });
   } catch (error) {
+    logger.error(`[transactions status] ${error}`);
     return res.status(500).json({ message: 'Lỗi server.' });
   }
 });

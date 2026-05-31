@@ -1,8 +1,6 @@
-import { Activity, Ban, Crown, Power, ShieldCheck, Users, Waves } from 'lucide-react';
+import { Activity, Ban, Crown, Power, ShieldCheck, Users, Waves, Search } from 'lucide-react';
 import { useEffect, useState, useMemo } from 'react';
 import './AdminPage.css';
-
-import { StatCard } from '../components/StatCard';
 import { api } from '../lib/api';
 
 type AdminOverview = {
@@ -168,11 +166,11 @@ export function AdminPage() {
   }, [users, searchTerm, sortBy, sortOrder]);
 
   if (loading) {
-    return <div className="panel-card">Đang tải trung tâm quản trị...</div>;
+    return <div className="v2-admin-page">Đang tải dữ liệu...</div>;
   }
 
   if (!overview) {
-    return <div className="panel-card error-text">{error || 'Không có dữ liệu quản trị.'}</div>;
+    return <div className="v2-admin-page v2-alert error">{error || 'Không có dữ liệu quản trị.'}</div>;
   }
 
   const disableRate = overview.stats.usersCount
@@ -181,348 +179,152 @@ export function AdminPage() {
   const sessionDensity = overview.stats.usersCount
     ? (overview.stats.sessionsThisWeek / overview.stats.usersCount).toFixed(1)
     : '0.0';
-  const adminCoverage = overview.stats.usersCount
-    ? Math.round((overview.stats.adminsCount / overview.stats.usersCount) * 100)
-    : 0;
-
-  const moderationSignals = [
-    `${overview.stats.disabledUsersCount} tài khoản đang bị khóa cần theo dõi trạng thái.`,
-    `${overview.stats.sessionsThisWeek} phiên trong tuần đang phản ánh mức độ sử dụng hiện tại.`,
-    `${overview.topUsers.length} tài khoản top XP cần được quan sát để phát hiện tăng trưởng bất thường.`
-  ];
-
-  const topOperator = overview.topUsers[0];
-  const recentSessionCards = sessions.slice(0, 4);
-  const statusTone = disableRate > 20 ? 'Cần chú ý' : sessionDensity === '0.0' ? 'Yên ắng' : 'Ổn định';
 
   return (
-    <div className="page-stack admin-shell-premium admin-shell-refined admin-shell-enterprise admin-shell-control">
-      {message ? <p className="success-text">{message}</p> : null}
-      {error ? <p className="error-text">{error}</p> : null}
+    <div className="v2-admin-page">
+      <div className="v2-page-header">
+        <h1 className="v2-page-title">Tổng quan hệ thống</h1>
+        <p className="v2-page-desc">Theo dõi hoạt động, dữ liệu thành viên và các phiên luyện tập.</p>
+      </div>
 
-      <section className="admin-command-stage">
-        <article className="panel-card dashboard-hero admin-hero admin-hero-compact admin-hero-enterprise admin-hero-control">
-          <div className="dashboard-hero-copy">
-            <p className="eyebrow">Trung tâm điều hành</p>
-            <h3>Điều hành hệ thống SpeakAI.</h3>
-            <div className="hero-chip-row compact">
-              <span className="badge-soft">
-                <Users size={14} />
-                {overview.stats.usersCount} thành viên
-              </span>
-              <span className="badge-soft">
-                <ShieldCheck size={14} />
-                {overview.stats.adminsCount} quản trị viên
-              </span>
-              <span className="badge-soft">
-                <Activity size={14} />
-                {statusTone}
-              </span>
-            </div>
-          </div>
-          <div className="hero-scoreboard hero-scoreboard-admin admin-scoreboard-extended">
-            <div className="scoreboard-card glow">
-              <span>Đang khóa</span>
-              <strong>{overview.stats.disabledUsersCount}</strong>
-            </div>
-            <div className="scoreboard-card">
-              <span>Phiên tuần</span>
-              <strong>{overview.stats.sessionsThisWeek}</strong>
-            </div>
-            <div className="scoreboard-card">
-              <span>Mật độ</span>
-              <strong>{sessionDensity}</strong>
-            </div>
-          </div>
-        </article>
+      {message && <div className="v2-alert success">{message}</div>}
+      {error && <div className="v2-alert error">{error}</div>}
 
-        <article className="panel-card admin-side-status-card">
-          <div className="section-heading compact-heading">
-            <div>
-              <p className="eyebrow">Tài khoản nổi bật</p>
-              <h3>{topOperator ? topOperator.name : 'Chưa có dữ liệu'}</h3>
-            </div>
-            <span className="badge-soft">
-              <Crown size={14} />
-              Top XP tuần
-            </span>
-          </div>
-
-          {topOperator ? (
-            <div className="admin-spotlight-card">
-              <div className="admin-spotlight-row">
-                <span>Email</span>
-                <strong>{topOperator.email}</strong>
-              </div>
-              <div className="admin-spotlight-row">
-                <span>XP tuần</span>
-                <strong>{topOperator.weeklyXp}</strong>
-              </div>
-              <div className="admin-spotlight-row">
-                <span>Chuỗi ngày</span>
-                <strong>{topOperator.streak} ngày</strong>
-              </div>
-            </div>
-          ) : (
-            <p className="muted-text">Chưa có dữ liệu nổi bật.</p>
-          )}
-        </article>
-      </section>
-
-      <section className="dashboard-grid four-up">
-        <StatCard title="Thành viên" value={overview.stats.usersCount} hint="Tổng tài khoản" accent="cyan" />
-        <StatCard title="Quản trị viên" value={overview.stats.adminsCount} hint="Tài khoản điều hành" accent="amber" />
-        <StatCard title="Đang khóa" value={overview.stats.disabledUsersCount} hint="Tài khoản bị vô hiệu" accent="coral" />
-        <StatCard title="Độ phủ quản trị" value={`${adminCoverage}%`} hint="Theo tổng tài khoản" accent="cyan" />
-      </section>
-
-      <section className="admin-command-grid admin-command-grid-control">
-        <article className="panel-card admin-command-card admin-command-card-main">
-          <div className="admin-command-head">
-            <div>
-              <p className="eyebrow">Tín hiệu hệ thống</p>
-              <h3>Những chỉ báo cần xem hôm nay.</h3>
-            </div>
-            <span className="badge-soft">
-              <Activity size={14} />
-              Dữ liệu vận hành
-            </span>
-          </div>
-
-          <div className="admin-health-grid">
-            <div className="admin-health-card">
-              <span>Tỷ lệ vô hiệu hóa</span>
-              <strong>{disableRate}%</strong>
-            </div>
-            <div className="admin-health-card">
-              <span>Mật độ phiên</span>
-              <strong>{sessionDensity}</strong>
-            </div>
-            <div className="admin-health-card">
-              <span>Độ phủ quản trị</span>
-              <strong>{adminCoverage}%</strong>
-            </div>
-          </div>
-        </article>
-
-        <article className="panel-card admin-command-card admin-command-card-side">
-          <div className="admin-command-head compact">
-            <div>
-              <p className="eyebrow">Ưu tiên moderation</p>
-              <h3>Việc cần xử lý</h3>
-            </div>
-          </div>
-          <div className="admin-signal-list">
-            {moderationSignals.map((item) => (
-              <div key={item} className="admin-signal-row">
-                <Waves size={16} />
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-        </article>
-      </section>
-
-      <section className="admin-live-grid">
-        <article className="panel-card detail-stack elevated-surface">
-          <div className="section-heading compact-heading">
-            <div>
-              <p className="eyebrow">Hiệu suất nổi bật</p>
-              <h3>Top XP tuần</h3>
-            </div>
-            <span className="badge-soft">
-              <Crown size={14} />
-              Xếp hạng động
-            </span>
-          </div>
-          <div className="leaderboard-list leaderboard-list-enhanced leaderboard-list-pro">
-            {overview.topUsers.map((item, index) => (
-              <div key={item.id} className="leaderboard-row leaderboard-row-enhanced leaderboard-row-compact leaderboard-row-elite">
-                <strong>#{index + 1}</strong>
-                <div>
-                  <p>{item.name}</p>
-                  <span>{item.email}</span>
-                </div>
-                <div className="leaderboard-meta">
-                  <span>{item.weeklyXp} XP</span>
-                  <span className={item.isDisabled ? 'status-badge danger' : 'status-badge success'}>
-                    {item.isDisabled ? 'Đang khóa' : 'Hoạt động'}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="panel-card detail-stack elevated-surface admin-session-feed-card">
-          <div className="section-heading compact-heading">
-            <div>
-              <p className="eyebrow">Phiên gần đây</p>
-              <h3>Dòng hoạt động</h3>
-            </div>
-          </div>
-          <div className="admin-session-feed">
-            {recentSessionCards.length ? (
-              recentSessionCards.map((item) => (
-                <article key={item.id} className="admin-session-row">
-                  <div>
-                    <strong>{item.user?.name || item.user?.email || 'Không xác định'}</strong>
-                    <p>{item.topic}</p>
-                  </div>
-                  <div className="admin-session-meta">
-                    <span>{item.practiceType === 'presentation' ? 'Thuyết trình' : 'Phỏng vấn'}</span>
-                    <strong>{item.totalScore}/100</strong>
-                    <span>{formatShortDate(item.createdAt)}</span>
-                  </div>
-                </article>
-              ))
-            ) : (
-              <p className="muted-text">Chưa có phiên gần đây.</p>
-            )}
-          </div>
-        </article>
-      </section>
-
-      <section className="dashboard-grid two-up align-start">
-        <article className="panel-card detail-stack elevated-surface">
-          <div className="section-heading compact-heading">
-            <div>
-              <p className="eyebrow">Tài khoản mới</p>
-              <h3>Người dùng vừa tham gia</h3>
-            </div>
-            <span className="badge-soft">
-              <Users size={14} />
-              Theo thời gian tạo
-            </span>
-          </div>
-          <div className="simple-table simple-table-enhanced">
-            {overview.recentUsers.map((item) => (
-              <div key={item.id} className="table-row compact">
-                <div>
-                  <strong>{item.name}</strong>
-                  <p>{item.email}</p>
-                </div>
-                <span>{item.isRootAdmin ? 'Admin gốc' : getRoleLabel(item.role)}</span>
-                <strong>{item.isRootAdmin ? 'Bảo vệ' : item.isDisabled ? 'Đang khóa' : 'Hoạt động'}</strong>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="panel-card detail-stack elevated-surface ops-card ops-card-minimal">
-          <p className="eyebrow">An toàn</p>
-          <h3>Giới hạn đang bật</h3>
-          <div className="profile-insight-list compact-insight-list">
-            <div className="profile-insight-item">
-              <ShieldCheck size={18} />
-              <p>Admin gốc được bảo vệ tuyệt đối.</p>
-            </div>
-            <div className="profile-insight-item">
-              <Ban size={18} />
-              <p>Không thể tự vô hiệu hóa từ giao diện.</p>
-            </div>
-            <div className="profile-insight-item">
-              <Waves size={18} />
-              <p>Phiên luyện chỉ cộng thưởng khi hợp lệ.</p>
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section className="panel-card detail-stack elevated-surface">
-        <div className="section-heading compact-heading">
-          <div>
-            <p className="eyebrow">Điều khiển người dùng</p>
-            <h3>Quản lý tài khoản</h3>
-          </div>
-          <span className="badge-soft">
-            <Ban size={14} />
-            Quản trị viên gốc được bảo vệ
-          </span>
+      <div className="v2-grid-metrics">
+        <div className="v2-card v2-metric-card">
+          <div className="v2-metric-label">Tổng thành viên</div>
+          <div className="v2-metric-value">{overview.stats.usersCount}</div>
+          <div className="v2-metric-sub">Bao gồm {overview.stats.adminsCount} quản trị viên</div>
         </div>
-
-        <div className="xi-table-controls">
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo tên hoặc email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="xi-search-input"
-          />
+        <div className="v2-card v2-metric-card">
+          <div className="v2-metric-label">Phiên trong tuần</div>
+          <div className="v2-metric-value">{overview.stats.sessionsThisWeek}</div>
+          <div className="v2-metric-sub">Mật độ: {sessionDensity} / người dùng</div>
         </div>
+        <div className="v2-card v2-metric-card">
+          <div className="v2-metric-label">Tài khoản bị vô hiệu</div>
+          <div className="v2-metric-value">{overview.stats.disabledUsersCount}</div>
+          <div className="v2-metric-sub">Tỷ lệ: {disableRate}% toàn hệ thống</div>
+        </div>
+      </div>
 
-        <div className="xi-table-wrapper">
-          <table className="xi-table">
-            <thead>
-              <tr>
-                <th>Avatar</th>
-                <th onClick={() => handleSort('name')} className="sortable-header">
-                  Tên & Email {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
-                <th>Vai trò</th>
-                <th onClick={() => handleSort('xp')} className="sortable-header">
-                  XP & Streak {sortBy === 'xp' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
-                <th>Trạng thái</th>
-                <th onClick={() => handleSort('date')} className="sortable-header">
-                  Ngày tạo {sortBy === 'date' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
-                <th>Hành động</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAndSortedUsers.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <div className="xi-avatar-initials">
-                      {item.name.charAt(0).toUpperCase()}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="xi-user-info">
-                      <strong>{item.name}</strong>
-                      <span className="muted-text">{item.email}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="tag-chip">{item.isRootAdmin ? 'Quản trị viên gốc' : getRoleLabel(item.role)}</span>
-                  </td>
-                  <td>
-                    <div className="xi-xp-streak">
-                      <strong>{item.totalXp} XP</strong>
-                      <span className="muted-text">{item.streak} ngày</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className={item.isRootAdmin ? 'badge-dark' : item.isDisabled ? 'badge-hard' : 'badge-easy'}>
-                      {item.isRootAdmin ? 'Bảo vệ' : item.isDisabled ? 'Đang khóa' : 'Hoạt động'}
-                    </span>
-                  </td>
-                  <td>
-                    {formatShortDate(item.createdAt)}
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className={item.isDisabled ? 'xi-btn-outline-primary' : 'xi-btn-outline-danger'}
-                      disabled={item.isRootAdmin || processingId === item.id}
-                      onClick={() => handleToggleStatus(item)}
-                    >
-                      {processingId === item.id ? 'Đang xử lý...' : item.isDisabled ? 'Mở khóa' : 'Khóa'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {filteredAndSortedUsers.length === 0 && (
+      <div className="v2-grid-main">
+        {/* Left Column: Users Table */}
+        <div className="v2-card">
+          <div className="v2-card-header">
+            <h3 className="v2-card-title"><Users size={16} /> Quản lý tài khoản</h3>
+          </div>
+          <div className="v2-table-toolbar">
+            <input
+              type="text"
+              placeholder="Tìm kiếm tài khoản..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="v2-input"
+            />
+          </div>
+          <div className="v2-table-wrapper">
+            <table className="v2-table">
+              <thead>
                 <tr>
-                  <td colSpan={7} className="text-center py-8">Không tìm thấy người dùng nào.</td>
+                  <th>Tài khoản</th>
+                  <th>Vai trò</th>
+                  <th onClick={() => handleSort('xp')} className="sortable">XP {sortBy === 'xp' && (sortOrder === 'asc' ? '↑' : '↓')}</th>
+                  <th>Trạng thái</th>
+                  <th>Hành động</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredAndSortedUsers.slice(0, 8).map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <div className="v2-user-cell">
+                        <div className="v2-avatar">{item.name.charAt(0).toUpperCase()}</div>
+                        <div>
+                          <p>{item.name}</p>
+                          <span>{item.email}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="v2-badge gray">{item.isRootAdmin ? 'Root' : getRoleLabel(item.role)}</span>
+                    </td>
+                    <td>
+                      <strong style={{ color: '#fff' }}>{item.totalXp}</strong>
+                    </td>
+                    <td>
+                      {item.isRootAdmin ? (
+                        <span className="v2-badge gray">Bảo vệ</span>
+                      ) : item.isDisabled ? (
+                        <span className="v2-badge red">Đã khóa</span>
+                      ) : (
+                        <span className="v2-badge green">Hoạt động</span>
+                      )}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className={`v2-btn ${item.isDisabled ? 'outline' : 'danger'}`}
+                        disabled={item.isRootAdmin || processingId === item.id}
+                        onClick={() => handleToggleStatus(item)}
+                      >
+                        {processingId === item.id ? '...' : item.isDisabled ? 'Mở khóa' : 'Khóa'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </section>
+
+        {/* Right Column: Leaderboard & Activity */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="v2-card">
+            <div className="v2-card-header">
+              <h3 className="v2-card-title"><Crown size={16} /> Top XP Tuần</h3>
+            </div>
+            <div className="v2-list">
+              {overview.topUsers.slice(0, 3).map((item, index) => (
+                <div key={item.id} className="v2-list-item">
+                  <div className="v2-user-cell">
+                    <div className="v2-avatar" style={{ background: index === 0 ? '#F59E0B' : index === 1 ? '#94A3B8' : '#B45309' }}>
+                      #{index + 1}
+                    </div>
+                    <div>
+                      <p>{item.name}</p>
+                      <span>{item.email}</span>
+                    </div>
+                  </div>
+                  <div className="v2-list-item-meta">
+                    <strong>{item.weeklyXp} XP</strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="v2-card">
+            <div className="v2-card-header">
+              <h3 className="v2-card-title"><Activity size={16} /> Phiên luyện tập gần đây</h3>
+            </div>
+            <div className="v2-list">
+              {sessions.slice(0, 4).map((item) => (
+                <div key={item.id} className="v2-list-item">
+                  <div className="v2-list-item-content">
+                    <p>{item.user?.name || item.user?.email || 'N/A'}</p>
+                    <span>{item.topic}</span>
+                  </div>
+                  <div className="v2-list-item-meta">
+                    <strong style={{ color: '#3b82f6' }}>{item.totalScore}/100</strong>
+                    <span style={{ color: '#71717a' }}>{formatShortDate(item.createdAt)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
-

@@ -917,7 +917,7 @@ const buildFallbackCvAnalysisV2 = (resumeText: string, targetRole: string): CvAn
   const hasOwnershipStory = signals.ownershipLines.length > 0;
   const hasProjects = signals.projectLines.length > 0;
 
-  const strengths = [
+  let strengths = [
     `CV đã thể hiện định hướng tương đối rõ cho vai trò ${mainRole}.`,
     hasOwnershipStory
       ? `Hồ sơ đã có dấu hiệu nêu rõ phần việc bạn trực tiếp đảm nhiệm, nổi bật ở đoạn "${ownershipAnchor}".`
@@ -930,7 +930,7 @@ const buildFallbackCvAnalysisV2 = (resumeText: string, targetRole: string): CvAn
       : `Bộ kỹ năng hiện có đang gợi mở đúng nhóm năng lực cho ${mainRole}, ví dụ như ${signals.skillAnchor}.`
   ].slice(0, 4);
 
-  const improvements = [
+  let improvements = [
     hasMeasuredImpact
       ? 'Nên gom các kết quả đo được vào đúng từng trải nghiệm chính để nhà tuyển dụng nhìn thấy tác động nhanh hơn.'
       : 'Cần bổ sung kết quả đo được cho từng trải nghiệm, ví dụ tỷ lệ tăng trưởng, doanh thu, số khách hàng hoặc hiệu suất cải thiện.',
@@ -1997,8 +1997,8 @@ const buildSmartFallbackPracticeFeedback = (input: {
   const roleLabel = normalizeText(input.targetRole) || 'vai trò mục tiêu';
   const anchorQuote = compactQuote(signals.anchorSentence || topicLabel);
   const evidenceQuote = compactQuote(signals.evidenceSentence || signals.supportingSentence || topicLabel);
-  const strengths: string[] = [];
-  const improvements: string[] = [];
+  let strengths: string[] = [];
+  let improvements: string[] = [];
   const coachNotes: string[] = [];
 
   if (input.transcriptAvailable && signals.hasOwnershipCue) {

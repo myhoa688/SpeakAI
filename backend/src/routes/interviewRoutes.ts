@@ -225,7 +225,7 @@ router.post('/:id/generate-script', authRequired, async (req, res) => {
       company: session.company
     });
 
-    session.answers = [{
+    session.answers.push({
       questionId: '',
       question: firstQuestion.question,
       answer: '',
@@ -233,9 +233,9 @@ router.post('/:id/generate-script', authRequired, async (req, res) => {
       clarityScore: 0,
       confidenceScore: 0,
       feedback: '',
-      strengths: [],
-      improvements: []
-    }];
+      strengths: [] as string[],
+      improvements: [] as string[]
+    });
     await session.save();
 
     return res.json({
@@ -425,7 +425,7 @@ router.post('/:id/answer', authRequired, async (req, res) => {
     clarityScore: 0,
     confidenceScore: 0,
     feedback: '',
-    strengths: [],
+    strengths: [] as string[],
     improvements: []
   });
   session.currentQuestionIndex = nextIndex;

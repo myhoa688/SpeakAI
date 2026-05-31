@@ -4,6 +4,7 @@ import fs from 'fs';
 import { randomUUID } from 'crypto';
 import path from 'path';
 import { CV } from '../models/CV.js';
+import { logger } from '../config/env.js';
 
 import { authRequired } from '../middleware/auth.js';
 import {
