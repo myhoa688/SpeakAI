@@ -2,6 +2,9 @@ import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { InterviewSet } from '../models/InterviewSet.js';
 import { User } from '../models/User.js';
+import { Question } from '../models/Question.js';
+import { InterviewSession } from '../models/InterviewSession.js';
+import { PracticeSession } from '../models/PracticeSession.js';
 import { env } from '../config/env.js';
 import { authRequired } from '../middleware/auth.js';
 
@@ -94,24 +97,19 @@ router.get('/', async (req, res) => {
  * Số liệu tổng quan cho landing page
  */
 router.get('/stats', async (_req, res) => {
-  const [totalSets, attemptsAgg, questionsAgg, distinctCompanies, totalUsers] = await Promise.all([
+  const [totalSets, totalQuestions, interviewSessions, practiceSessions, distinctCompanies, totalUsers] = await Promise.all([
     InterviewSet.countDocuments({ isPublished: true }),
-    InterviewSet.aggregate([
-      { $match: { isPublished: true } },
-      { $group: { _id: null, total: { $sum: '$attemptCount' } } }
-    ]),
-    InterviewSet.aggregate([
-      { $match: { isPublished: true } },
-      { $group: { _id: null, total: { $sum: '$questionCount' } } }
-    ]),
+    Question.countDocuments(),
+    InterviewSession.countDocuments(),
+    PracticeSession.countDocuments(),
     InterviewSet.distinct('company', { isPublished: true, company: { $nin: ['', null] } }),
     User.countDocuments()
   ]);
 
   return res.json({
     totalSets,
-    totalAttempts: attemptsAgg[0]?.total ?? 0,
-    totalQuestions: questionsAgg[0]?.total ?? 0,
+    totalAttempts: interviewSessions + practiceSessions,
+    totalQuestions,
     totalCompanies: distinctCompanies.length,
     companies: distinctCompanies,
     totalUsers
