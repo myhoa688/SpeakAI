@@ -12,3 +12,7 @@ backend/.env
 backend/uploads
 frontend/dist
 backend/dist
+.gemini
+.codegraph
+_meta
+scratch
