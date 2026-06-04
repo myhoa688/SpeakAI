@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Types } from 'mongoose';
 
 export interface IInterviewSet extends Document {
   title: string;
@@ -14,6 +14,7 @@ export interface IInterviewSet extends Document {
   isPublished: boolean;
   attemptCount: number;
   averageScore: number;
+  questionIds: Types.ObjectId[];
   createdAt: Date;
 }
 
@@ -36,8 +37,10 @@ const InterviewSetSchema = new Schema<IInterviewSet>(
     isPublished: { type: Boolean, default: true },
     attemptCount: { type: Number, default: 0 },
     averageScore: { type: Number, default: 0 },
+    questionIds: [{ type: Schema.Types.ObjectId, ref: 'Question' }],
   },
   { timestamps: true }
 );
 
 export const InterviewSet = mongoose.model<IInterviewSet>('InterviewSet', InterviewSetSchema);
+

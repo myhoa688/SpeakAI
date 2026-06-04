@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BriefcaseBusiness, Clock, Filter, Loader2,
-  PlayCircle, Search, Star, Users, ArrowRight, Clock3, Heart, PlusCircle, BarChart2, TrendingUp, ChevronRight, ChevronDown
+  PlayCircle, Search, Star, Users, ArrowRight, Clock3, Heart, PlusCircle, BarChart2, TrendingUp, ChevronRight, ChevronDown, Lightbulb
 } from 'lucide-react';
 import { api } from '../lib/api';
 import type { InterviewSet } from '../types';
@@ -19,9 +19,11 @@ const INDUSTRY_OPTIONS = [
 
 export function InterviewSetsPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshMe } = useAuth();
   const [sets, setSets] = useState<InterviewSet[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [localFavorites, setLocalFavorites] = useState<Record<string, boolean>>({});
   
   const [search, setSearch] = useState('');
   const [industry, setIndustry] = useState('Tất cả');
@@ -29,6 +31,8 @@ export function InterviewSetsPage() {
   const [experienceLevel, setExperienceLevel] = useState('');
   const [isFavoriteFilter, setIsFavoriteFilter] = useState(false);
   const [isIndustryModalOpen, setIsIndustryModalOpen] = useState(false);
+  
+  const [recentSession, setRecentSession] = useState<any>(null);
 
   const loadSets = async () => {
     setLoading(true);
@@ -40,10 +44,23 @@ export function InterviewSetsPage() {
       if (experienceLevel) params.experienceLevel = experienceLevel;
       if (isFavoriteFilter) params.isFavorite = 'true';
 
-      const res = await api.get('/interview-sets', { params });
+      const [res, historyRes] = await Promise.all([
+        api.get('/interview-sets', { params }),
+        api.get('/interviews/history').catch(() => ({ data: { sessions: [] } }))
+      ]);
+      
       setSets(res.data.sets);
+      setTotalCount(res.data.pagination?.total || res.data.sets.length);
+      
+      if (historyRes.data.sessions && historyRes.data.sessions.length > 0) {
+        setRecentSession(historyRes.data.sessions[0]);
+      } else {
+        setRecentSession(null);
+      }
     } catch {
       setSets([]);
+      setTotalCount(0);
+      setRecentSession(null);
     } finally {
       setLoading(false);
     }
@@ -60,19 +77,25 @@ export function InterviewSetsPage() {
       alert('Vui lòng đăng nhập để lưu mục yêu thích');
       return;
     }
+
+    const currentStatus = localFavorites[setId] !== undefined 
+      ? localFavorites[setId] 
+      : user?.favoriteInterviewSets?.some(id => id.toString() === setId) || false;
+
+    // Optimistic update
+    setLocalFavorites(prev => ({ ...prev, [setId]: !currentStatus }));
+
     try {
       await api.post(`/interview-sets/${setId}/favorite`);
-      // Optimistically update if in favorite filter mode, or just let user see it
-      if (isFavoriteFilter) {
+      await refreshMe();
+      
+      if (isFavoriteFilter && currentStatus) {
         setSets(prev => prev.filter(s => s._id !== setId));
-      } else {
-        // Technically we should update the specific item's isFavorite state if we tracked it in the UI, 
-        // but for now we can just show a toast or rely on backend.
-        // Re-fetching is simple enough:
-        void loadSets();
       }
     } catch (err) {
       console.error(err);
+      // Revert on error
+      setLocalFavorites(prev => ({ ...prev, [setId]: currentStatus }));
     }
   };
 
@@ -208,7 +231,7 @@ export function InterviewSetsPage() {
             </div>
           </section>
 
-          <p className="muted-text" style={{ margin: 0, fontSize: '0.9rem' }}>Hiển thị <b>1-{sets.length}</b> / 630 các vị trí phỏng vấn thực tế</p>
+          <p className="muted-text" style={{ margin: 0, fontSize: '0.9rem' }}>Hiển thị <b>1-{sets.length}</b> / {totalCount} các vị trí phỏng vấn thực tế</p>
 
           {/* Cards Grid */}
           {loading ? (
@@ -223,7 +246,9 @@ export function InterviewSetsPage() {
           ) : (
             <div className="xi-sets-grid">
               {sets.map(set => {
-                const isFavorited = user?.favoriteInterviewSets?.some(id => id.toString() === set._id);
+                const isFavorited = localFavorites[set._id] !== undefined 
+                  ? localFavorites[set._id] 
+                  : user?.favoriteInterviewSets?.some(id => id.toString() === set._id) || false;
                 const difficultyClass = `xi-difficulty-${set.difficulty}`;
                 const difficultyLabel = DIFFICULTY_LABEL[set.difficulty as keyof typeof DIFFICULTY_LABEL];
                 
@@ -291,69 +316,79 @@ export function InterviewSetsPage() {
         {/* Right Sidebar */}
         <div className="detail-stack">
           {/* Lịch sử gần đây */}
-          <div className="panel-card" style={{ padding: '0.5rem' }}>
+          <div style={{ background: '#18191b', backgroundImage: 'none', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)', boxShadow: '0 20px 44px rgba(3, 10, 20, 0.28)', overflow: 'hidden', padding: '0.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, fontSize: '0.9rem' }}>
                 <Clock3 size={18} /> Lịch sử gần đây
               </h3>
-              <a href="#" style={{ fontSize: '0.85rem', color: 'var(--primary)', textDecoration: 'none' }}>Xem tất cả &rarr;</a>
+              <a href="/interview/history" style={{ fontSize: '0.85rem', color: 'var(--primary)', textDecoration: 'none' }}>Xem tất cả &rarr;</a>
             </div>
             
             <div style={{ border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>Tuyển dụng & phát triển nguồn ứng viên</h4>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Clock3 size={14} /> 1 tuần trước</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><BriefcaseBusiness size={14} /> TMEDU</span>
+              {recentSession ? (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>
+                        {recentSession.specialization || recentSession.industry || 'Lộ trình phỏng vấn chung'}
+                      </h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Clock3 size={14} /> {new Date(recentSession.completedAt || recentSession.createdAt).toLocaleDateString('vi-VN')}</span>
+                      </div>
+                    </div>
+                    <button onClick={() => navigate(`/interview/${recentSession.id}/result`)} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>&rarr;</button>
                   </div>
-                </div>
-                <button style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>&rarr;</button>
-              </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
-                <div style={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '0.5rem 1rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>ĐIỂM</div>
-                  <strong style={{ fontSize: '1.1rem' }}>-</strong>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+                    <div style={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '0.5rem 1rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>ĐIỂM</div>
+                      <strong style={{ fontSize: '1.1rem' }}>{recentSession.overallScore}</strong>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981', fontSize: '0.85rem', fontWeight: 500 }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></span> Đã hoàn thành
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '1rem 0', color: 'var(--text-secondary)' }}>
+                  <p style={{ margin: 0, fontSize: '0.85rem' }}>Chưa có lịch sử phỏng vấn nào.</p>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#f59e0b', fontSize: '0.85rem', fontWeight: 500 }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b' }}></span> Đang thực hiện
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Việc làm gợi ý */}
-          <div className="panel-card" style={{ padding: '0.5rem' }}>
+          {/* Mẹo phỏng vấn */}
+          <div style={{ background: '#18191b', backgroundImage: 'none', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)', boxShadow: '0 20px 44px rgba(3, 10, 20, 0.28)', overflow: 'hidden', padding: '0.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', margin: 0 }}>
-                <BriefcaseBusiness size={18} /> Việc làm gợi ý
+                <Lightbulb size={18} color="#f59e0b" /> Mẹo phỏng vấn
               </h3>
-              <a href="#" style={{ fontSize: '0.85rem', color: 'var(--primary)', textDecoration: 'none' }}>Xem tất cả</a>
             </div>
             
-            <div className="detail-stack" style={{ gap: '0.5rem' }}>
-              {[
-                { title: 'Luật sư cộng sự', company: 'Công ty Luật TNHH Everest', location: 'Hà Nội, Hưng Yên' },
-                { title: 'Trợ lý Luật sư', company: 'Công ty Luật TNHH Everest', location: 'Hà Nội, Hưng Yên' }
-              ].map((job, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: idx === 0 ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <div style={{ width: '40px', height: '40px', background: '#fff', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ color: '#dc2626', fontWeight: 800, fontSize: '0.6rem', letterSpacing: '-0.5px' }}>Everest</span>
-                    </div>
-                    <div>
-                      <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.95rem' }}>{job.title}</h4>
-                      <p className="muted-text" style={{ margin: '0 0 0.5rem', fontSize: '0.8rem' }}>{job.company} • {job.location}</p>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <span className="tag-chip" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', padding: '0.15rem 0.5rem', fontSize: '0.75rem' }}>Thỏa thuận</span>
-                        <span className="tag-chip" style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)', padding: '0.15rem 0.5rem', fontSize: '0.75rem' }}>Làm việc từ xa</span>
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight size={18} color="var(--text-tertiary)" />
+            <div className="detail-stack" style={{ gap: '0.75rem' }}>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ width: '32px', height: '32px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '6px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: '#f59e0b', fontWeight: 800, fontSize: '1rem' }}>1</span>
                 </div>
-              ))}
+                <div>
+                  <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.95rem', color: '#fcd34d' }}>Phương pháp STAR</h4>
+                  <p className="muted-text" style={{ margin: 0, fontSize: '0.85rem', lineHeight: 1.4 }}>
+                    Sử dụng cấu trúc <strong>S</strong>tuation, <strong>T</strong>ask, <strong>A</strong>ction, <strong>R</strong>esult để trả lời câu hỏi rõ ràng.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                <div style={{ width: '32px', height: '32px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '6px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: '#3b82f6', fontWeight: 800, fontSize: '1rem' }}>2</span>
+                </div>
+                <div>
+                  <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.95rem', color: '#93c5fd' }}>Giao tiếp phi ngôn ngữ</h4>
+                  <p className="muted-text" style={{ margin: 0, fontSize: '0.85rem', lineHeight: 1.4 }}>
+                    Giữ giao tiếp mắt với camera, mỉm cười nhẹ và ngồi thẳng lưng.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

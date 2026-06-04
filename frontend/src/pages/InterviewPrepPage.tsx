@@ -46,6 +46,7 @@ export function InterviewPrepPage() {
   const [language, setLanguage] = useState(state.language || 'vi');
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
+  const [isDescOpen, setIsDescOpen] = useState(false);
 
   useEffect(() => {
     if (!isFromSet) return;
@@ -70,6 +71,7 @@ export function InterviewPrepPage() {
   const duration = isFromSet ? state.set?.durationMinutes : 30;
   const questions = isFromSet ? state.set?.questionCount : 10;
   const difficulty = isFromSet ? state.set?.difficulty : 'medium';
+  const jobDescriptionText = isFromSet ? state.set?.jobDescription : (state.jobDescription || analysisContext?.jobDescription || 'Chưa có mô tả chi tiết cho công việc này.');
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -88,6 +90,7 @@ export function InterviewPrepPage() {
       if (isFromSet) {
         if (state.set) {
           formData.append('jobDescription', JSON.stringify(state.set));
+          formData.append('interviewSetId', state.set._id);
         }
         if (cvFile) {
           formData.append('cv', cvFile);
@@ -125,14 +128,8 @@ export function InterviewPrepPage() {
   };
 
   return (
-    <div className="page-stack" style={{ maxWidth: '1100px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--text-tertiary)' }}>
-        <span style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>Trang chủ</span>
-        <ChevronRight size={14} />
-        <span style={{ cursor: 'pointer' }} onClick={() => navigate('/interview-sets')}>Luyện tập phỏng vấn</span>
-        <ChevronRight size={14} />
-        <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>Chuẩn bị</span>
-      </div>
+    <div className="page-stack" style={{ maxWidth: '1300px', margin: '0 auto' }}>
+
 
       <div style={{ marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1.8rem', margin: '0 0 0.5rem' }}>Sẵn sàng cho buổi luyện tập</h2>
@@ -144,7 +141,7 @@ export function InterviewPrepPage() {
         {/* Left Column */}
         <div className="detail-stack" style={{ gap: '1.5rem' }}>
           
-          <section className="panel-card" style={{ padding: '1.5rem' }}>
+          <section className="panel-card" style={{ padding: '2rem', background: '#18191b', border: '1px solid rgba(255,255,255,0.05)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', fontSize: '0.95rem', fontWeight: 600 }}>
               <Building2 size={18} /> Chi tiết phỏng vấn
             </div>
@@ -186,14 +183,23 @@ export function InterviewPrepPage() {
               <span className="tag-chip" style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>Giải quyết Vấn đề</span>
             </div>
 
-            <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem', background: 'var(--surface-sunken)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', cursor: 'pointer', fontWeight: 500, fontSize: '0.95rem' }}>
+            <div style={{ border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--surface-sunken)', overflow: 'hidden' }}>
+              <div 
+                onClick={() => setIsDescOpen(!isDescOpen)}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontWeight: 500, fontSize: '0.95rem', padding: '1rem' }}
+              >
                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FileText size={16} /> Mô tả công việc</span>
+                <ChevronRight size={16} style={{ transform: isDescOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
               </div>
+              {isDescOpen && (
+                <div style={{ padding: '0 1rem 1rem 1rem', fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                  {jobDescriptionText}
+                </div>
+              )}
             </div>
           </section>
 
-          <section className="panel-card" style={{ padding: '1.5rem' }}>
+          <section className="panel-card" style={{ padding: '2rem', background: '#18191b', border: '1px solid rgba(255,255,255,0.05)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', fontSize: '0.95rem', fontWeight: 600 }}>
               <Clock size={18} /> Quy trình phỏng vấn
             </div>
@@ -248,41 +254,8 @@ export function InterviewPrepPage() {
 
         {/* Right Column */}
         <div className="detail-stack" style={{ gap: '1.5rem' }}>
-          
-          <section className="panel-card" style={{ padding: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', fontSize: '0.95rem', fontWeight: 600 }}>
-              <Mic size={18} /> Ngôn ngữ phỏng vấn
-            </div>
-            <p className="muted-text" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>Chọn ngôn ngữ cho nhận dạng giọng nói và đọc văn bản</p>
-            
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              {LANGUAGES.map((lang) => (
-                <button
-                  key={lang.code}
-                  type="button"
-                  className={`panel-card ${language === lang.code ? 'lang-selected' : ''}`}
-                  style={{
-                    flex: '1 1 calc(50% - 0.75rem)',
-                    padding: '0.75rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    cursor: 'pointer',
-                    border: language === lang.code ? '2px solid var(--primary)' : '1px solid var(--border)',
-                    background: language === lang.code ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
-                  }}
-                  onClick={() => setLanguage(lang.code)}
-                >
-                  <span style={{ fontSize: '1rem', fontWeight: 600 }}>{lang.label}</span>
-                  <span className="muted-text" style={{ fontSize: '0.8rem' }}>{lang.text}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-
           {isFromSet && (
-            <section className="panel-card" style={{ padding: '1.5rem' }}>
+            <section className="panel-card" style={{ padding: '2rem', background: '#18191b', border: '1px solid rgba(255,255,255,0.05)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontSize: '0.95rem', fontWeight: 600 }}>
                 <Sparkles size={18} color="var(--primary)" /> Cá nhân hóa câu hỏi phỏng vấn dựa trên CV
               </div>

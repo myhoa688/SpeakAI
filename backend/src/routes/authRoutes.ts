@@ -331,5 +331,34 @@ router.post('/forgot-password/reset', async (req, res) => {
     return res.status(500).json({ message: 'Đã xảy ra lỗi, vui lòng thử lại.' });
   }
 });
+// ────────────────────────────────────────────────────────────────────────────
+// Đổi mật khẩu
+// ────────────────────────────────────────────────────────────────────────────
+router.patch('/change-password', authRequired, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Vui lòng điền đầy đủ mật khẩu hiện tại và mật khẩu mới.' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'Mật khẩu mới phải có tối thiểu 8 ký tự.' });
+    }
+
+    const user = req.user!;
+    const isMatch = await comparePassword(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Mật khẩu hiện tại không chính xác.' });
+    }
+
+    user.passwordHash = await hashPassword(newPassword);
+    await user.save();
+
+    return res.json({ message: 'Cập nhật mật khẩu thành công.' });
+  } catch (error) {
+    logger.error(`[auth/change-password] ${error instanceof Error ? error.message : String(error)}`);
+    return res.status(500).json({ message: 'Đã xảy ra lỗi, vui lòng thử lại.' });
+  }
+});
 
 export default router;

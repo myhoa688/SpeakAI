@@ -1,5 +1,6 @@
 import { env, logger } from '../config/env.js';
 import { aiClient } from '../config/ai.js';
+import { z } from 'zod';
 
 /**
  * Phân tích CV thuần túy (không có JD) để extract thông tin vai trò và kỹ năng.
@@ -167,3 +168,78 @@ Chỉ trả về JSON, không giải thích gì thêm.`
     };
   }
 };
+
+export const generateInterviewSetQuestions = async (
+  jdText: string,
+  company: string,
+  role: string,
+  industry: string,
+  difficulty: 'easy' | 'medium' | 'hard',
+  questionCount: number = 12
+) => {
+  logger.info(`[generateInterviewSetQuestions] JD length: ${jdText.length}, Count: ${questionCount}`);
+  if (!aiClient) {
+    throw new Error('AI service not configured');
+  }
+
+  try {
+    const response = await aiClient.chat.completions.create({
+      model: env.openaiTextModel,
+      temperature: 0.7,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: `Bạn là một chuyên gia tuyển dụng cấp cao. Hãy tạo một bộ gồm ${questionCount} câu hỏi phỏng vấn dựa trên Mô tả công việc (JD) cho vị trí "${role}" tại công ty "${company}" thuộc ngành "${industry}". Độ khó tổng thể: ${difficulty}.
+Bộ câu hỏi cần bao gồm tỷ lệ hợp lý giữa các loại: chuyên môn (technical), tình huống (behavioral), và chung (general).
+
+Trả về một JSON object duy nhất có cấu trúc nghiêm ngặt sau:
+{
+  "questions": [
+    {
+      "question": "Nội dung câu hỏi...",
+      "guidance": "Gợi ý hoặc hướng dẫn trả lời cho ứng viên...",
+      "sampleAnswer": "Câu trả lời mẫu chi tiết...",
+      "difficulty": "easy" | "medium" | "hard",
+      "tags": ["tag1", "tag2", "tag3"],
+      "analysis": {
+        "interviewerEvaluation": ["tiêu chí 1", "tiêu chí 2"],
+        "answerStructure": {
+          "open": "Cách mở đầu hiệu quả...",
+          "points": ["Ý chính 1 cần có", "Ý chính 2 cần có"],
+          "close": "Cách chốt lại vấn đề..."
+        },
+        "importantTips": [
+          { "priority": "HIGH", "content": "Mẹo quan trọng 1" },
+          { "priority": "MEDIUM", "content": "Mẹo 2" }
+        ],
+        "followUpQuestions": ["Câu hỏi phụ 1", "Câu hỏi phụ 2"],
+        "commonMistakes": ["Lỗi thường gặp 1", "Lỗi thường gặp 2"]
+      }
+    }
+  ]
+}
+QUAN TRỌNG: CHỈ trả về định dạng JSON hợp lệ theo đúng cấu trúc trên, KHÔNG thêm bất kỳ văn bản nào khác. Hãy chắc chắn có đủ ${questionCount} phần tử trong mảng "questions".`
+        },
+        {
+          role: 'user',
+          content: `--- THÔNG TIN ---
+Công ty: ${company}
+Vai trò: ${role}
+Ngành nghề: ${industry}
+
+--- JOB DESCRIPTION ---
+${jdText.slice(0, 5000)}`
+        }
+      ]
+    });
+
+    const raw = response.choices[0]?.message?.content ?? '{"questions":[]}';
+    const parsed = JSON.parse(raw);
+    return parsed.questions || [];
+  } catch (error) {
+    logger.error(`[generateInterviewSetQuestions] Error: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error('Không thể sinh câu hỏi từ JD lúc này. Vui lòng thử lại sau.');
+  }
+};
+

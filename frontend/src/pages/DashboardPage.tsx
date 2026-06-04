@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
-import { Video, CheckCircle, Send, BarChart2, Bot, ChevronRight, Search, Clock, Building2, ArrowRight, ChevronDown, Hourglass } from 'lucide-react';
+import { Video, CheckCircle, Send, BarChart2, Bot, ChevronRight, Search, Clock, Building2, ArrowRight, ChevronDown, Hourglass, Lightbulb, Star, Trophy, FileText, FileUp, Upload } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 import type { DashboardData, InterviewSet } from '../types';
@@ -15,19 +15,23 @@ export function DashboardPage() {
   const [featuredSets, setFeaturedSets] = useState<InterviewSet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [hasCv, setHasCv] = useState(false);
 
   const loadDashboard = async () => {
     setLoading(true);
     setError('');
 
     try {
-      const [response, featuredRes] = await Promise.all([
+      const [response, featuredRes, cvsRes] = await Promise.all([
         api.get('/users/dashboard'),
-        api.get('/interview-sets?featured=true&limit=4')
+        api.get('/interview-sets?featured=true&limit=4'),
+        api.get('/cvs').catch(() => ({ data: { cvs: [] } }))
       ]);
       setDashboard(response.data);
       updateUser(response.data.user);
       setFeaturedSets(featuredRes.data.sets || []);
+      setHasCv(cvsRes.data.cvs && cvsRes.data.cvs.length > 0);
     } catch (loadError: any) {
       setError(loadError.response?.data?.message ?? 'Không thể tải dữ liệu tổng quan lúc này.');
     } finally {
@@ -99,13 +103,13 @@ export function DashboardPage() {
 
             <div className="stat-card-modern">
               <div className="stat-card-modern-header">
-                <span className="stat-card-title">Đơn ứng tuyển<br/>đã gửi</span>
-                <div className="stat-card-icon-wrap" style={{ color: '#3b82f6' }}>
-                  <Send size={18} />
+                <span className="stat-card-title">Tổng điểm<br/>kinh nghiệm</span>
+                <div className="stat-card-icon-wrap" style={{ color: '#eab308' }}>
+                  <Star size={18} />
                 </div>
               </div>
-              <strong className="stat-card-value">0</strong>
-              <div className="stat-card-blob" style={{ background: '#3b82f6' }}></div>
+              <strong className="stat-card-value">{user?.totalXp || 0} XP</strong>
+              <div className="stat-card-blob" style={{ background: '#eab308' }}></div>
             </div>
 
             <div className="stat-card-modern">
@@ -127,6 +131,13 @@ export function DashboardPage() {
               <input 
                 type="text" 
                 placeholder="Tìm kiếm câu hỏi, việc làm hoặc tài nguyên..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchQuery.trim()) {
+                    navigate(`/questions?search=${encodeURIComponent(searchQuery.trim())}`);
+                  }
+                }}
                 style={{ width: '100%', padding: '0.8rem 1rem 0.8rem 2.5rem', borderRadius: '8px', border: '1px solid var(--border)', background: '#121316', color: '#fff' }}
               />
               <Search size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: '12px', top: '15px' }} />
@@ -203,47 +214,76 @@ export function DashboardPage() {
             </div>
           </div>
 
-          {/* GỢI Ý VIỆC LÀM */}
-          <div className="dashboard-panel" style={{ padding: '1.5rem' }}>
+
+          {/* BẢNG XẾP HẠNG KINH NGHIỆM */}
+          <div className="dashboard-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ fontSize: '1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Building2 size={18} /> Việc làm gợi ý
+                <Trophy size={18} color="#10b981" /> Xếp hạng kinh nghiệm
               </h3>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>Xem tất cả</span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div style={{ padding: '1rem', background: '#121316', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                <div style={{ width: '40px', height: '40px', background: '#fff', borderRadius: '6px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ color: '#ef4444', fontWeight: 800, fontSize: '1.2rem' }}>E</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {dashboard.leaderboard && dashboard.leaderboard.length > 0 ? (
+                [...dashboard.leaderboard].sort((a, b) => b.totalXp - a.totalXp).slice(0, 5).map((userL, idx) => {
+                  let rankColor = '#6b7280';
+                  let rankBg = 'rgba(255,255,255,0.05)';
+                  if (idx === 0) { rankColor = '#f59e0b'; rankBg = 'rgba(245,158,11,0.1)'; }
+                  else if (idx === 1) { rankColor = '#9ca3af'; rankBg = 'rgba(156,163,175,0.1)'; }
+                  else if (idx === 2) { rankColor = '#b45309'; rankBg = 'rgba(180,83,9,0.1)'; }
+                  
+                  return (
+                    <div key={idx} style={{ padding: '0.75rem', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', borderRadius: '8px', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                      <div style={{ width: '28px', height: '28px', background: rankBg, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ color: rankColor, fontWeight: 700, fontSize: '0.85rem' }}>{idx + 1}</span>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {userL.name}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          {userL.targetRole || 'Học viên'}
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 700, color: '#10b981', fontSize: '0.9rem' }}>
+                        {userL.totalXp} XP
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  Chưa có dữ liệu xếp hạng
                 </div>
-                <div style={{ flexGrow: 1 }}>
-                  <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.95rem' }}>Luật sư cộng sự</h4>
-                  <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Công Ty Luật TNHH Everest • Hà Nội</p>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'rgba(16,185,129,0.1)', color: 'var(--success)', borderRadius: '4px' }}>Thỏa thuận</span>
-                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', borderRadius: '4px' }}>Từ xa</span>
-                  </div>
-                </div>
-                <ChevronRight size={16} color="var(--text-secondary)" />
-              </div>
-
-              <div style={{ padding: '1rem', background: '#121316', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                <div style={{ width: '40px', height: '40px', background: '#fff', borderRadius: '6px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ color: '#ef4444', fontWeight: 800, fontSize: '1.2rem' }}>E</span>
-                </div>
-                <div style={{ flexGrow: 1 }}>
-                  <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.95rem' }}>Trợ lý Luật sư</h4>
-                  <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Công Ty Luật TNHH Everest • Hà Nội</p>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'rgba(16,185,129,0.1)', color: 'var(--success)', borderRadius: '4px' }}>Thỏa thuận</span>
-                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', borderRadius: '4px' }}>Từ xa</span>
-                  </div>
-                </div>
-                <ChevronRight size={16} color="var(--text-secondary)" />
-              </div>
+              )}
             </div>
           </div>
+
+          {/* HỒ SƠ CỦA BẠN (Ẩn nếu đã có CV) */}
+          {!hasCv && (
+            <div className="dashboard-panel" style={{ padding: 0, marginBottom: '1.5rem', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}>
+                <h3 style={{ fontSize: '1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#fff', fontWeight: 600 }}>
+                  <FileText size={18} color="#8b5cf6" /> Hồ sơ của bạn
+                </h3>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '3rem 1.5rem' }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
+                  <FileUp size={24} color="var(--text-secondary)" />
+                </div>
+                <p style={{ color: 'var(--text-secondary)', margin: '0 0 1.5rem', fontSize: '0.95rem' }}>
+                  Chưa có hồ sơ nào được tải lên
+                </p>
+                <button 
+                  onClick={() => navigate('/cv')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#8b5cf6', color: '#fff', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '100px', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s' }}
+                >
+                  <Upload size={18} /> Tải lên hồ sơ
+                </button>
+              </div>
+            </div>
+          )}
 
         </div>
       </div>

@@ -2,6 +2,7 @@ import { model, Schema, type InferSchemaType, type Types } from 'mongoose';
 
 const questionSchema = new Schema(
   {
+    userId: { type: Schema.Types.ObjectId, ref: 'User', default: null, index: true },
     industryGroup: { type: String, required: true, trim: true, index: true },
     industry: { type: String, required: true, trim: true, index: true },
     specialization: { type: String, default: '', trim: true, index: true },

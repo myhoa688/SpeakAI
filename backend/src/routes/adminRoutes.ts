@@ -11,6 +11,7 @@ import { User } from '../models/User.js';
 import { canDisableUser } from '../services/bootstrapService.js';
 import { isRootAdmin } from '../utils/auth.js';
 import { getWeekKey } from '../utils/progression.js';
+import { generateInterviewSetQuestions } from '../services/jdParserService.js';
 
 dayjs.extend(isoWeek);
 
@@ -42,7 +43,7 @@ router.get('/overview', authRequired, adminOnly, async (_req, res) => {
       usersCount,
       adminsCount,
       disabledUsersCount,
-      sessionsThisWeek,
+      sessionsThisWeek: sessionsThisWeek + interviewSessionsThisWeek,
       interviewSessionsThisWeek,
       questionsCount,
       interviewSetsCount
@@ -312,6 +313,70 @@ router.post('/interview-sets', authRequired, adminOnly, async (req, res) => {
   const set = new InterviewSet(req.body);
   await set.save();
   return res.status(201).json({ message: 'Tạo bộ đề thành công.', set });
+});
+
+router.post('/interview-sets/generate-from-jd', authRequired, adminOnly, async (req, res) => {
+  const { jdText, company, title, industry, experienceLevel, difficulty, questionCount } = req.body;
+  if (!jdText || !company || !title) {
+    return res.status(400).json({ message: 'Thiếu thông tin bắt buộc (jdText, company, title).' });
+  }
+
+  try {
+    const generatedCount = parseInt(questionCount) || 12;
+    const diff = difficulty || 'medium';
+    const ind = industry || 'Khác';
+
+    // 1. Generate questions via AI
+    const generatedQuestions = await generateInterviewSetQuestions(jdText, company, title, ind, diff, generatedCount);
+
+    if (!generatedQuestions || generatedQuestions.length === 0) {
+      return res.status(500).json({ message: 'AI không thể sinh câu hỏi. Vui lòng thử lại.' });
+    }
+
+    // 2. Format and Insert to Question DB
+    const questionsToInsert = generatedQuestions.map((q: any) => ({
+      userId: req.user!._id,
+      industryGroup: ind,
+      industry: ind,
+      specialization: title,
+      question: q.question,
+      guidance: q.guidance,
+      sampleAnswer: q.sampleAnswer,
+      difficulty: q.difficulty || diff,
+      tags: q.tags || [],
+      isPublished: true, // Auto publish generated questions
+      analysis: q.analysis || {}
+    }));
+
+    const insertedQuestions = await Question.insertMany(questionsToInsert);
+    const questionIds = insertedQuestions.map(q => q._id);
+
+    // 3. Create InterviewSet
+    const interviewSet = new InterviewSet({
+      title: `Phỏng vấn vị trí ${title} tại ${company}`,
+      company,
+      industry: ind,
+      category: 'general',
+      difficulty: diff,
+      questionCount: insertedQuestions.length,
+      durationMinutes: insertedQuestions.length * 3, // Roughly 3 mins per question
+      experienceLevel: experienceLevel || 'junior',
+      jobDescription: jdText,
+      tags: [company, title, ind].filter(Boolean),
+      isPublished: true,
+      questionIds
+    });
+
+    await interviewSet.save();
+
+    return res.status(201).json({
+      message: 'Tạo bộ phỏng vấn từ JD thành công.',
+      interviewSet,
+      questions: insertedQuestions
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error instanceof Error ? error.message : 'Đã có lỗi xảy ra.' });
+  }
 });
 
 router.put('/interview-sets/:id', authRequired, adminOnly, async (req, res) => {

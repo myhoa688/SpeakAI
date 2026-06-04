@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
-import { Check, CheckCircle, X, QrCode, Copy, Info, ChevronRight, MonitorPlay, Clock } from 'lucide-react';
+import { Check, CheckCircle, X, QrCode, Copy, Info, ChevronRight, MonitorPlay, Clock, Video, FileQuestion, Flame } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -164,12 +164,6 @@ export function PackagesPage() {
   return (
     <div style={{ backgroundColor: 'transparent', minHeight: '100%', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
       
-      {/* Breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem', marginBottom: '2rem' }}>
-        <span>Trang chủ</span>
-        <ChevronRight size={14} />
-        <span style={{ color: 'rgba(255,255,255,0.9)' }}>Gói dịch vụ</span>
-      </div>
 
       {/* Hero Section */}
       <section style={{ marginBottom: '4rem' }}>
@@ -259,36 +253,37 @@ export function PackagesPage() {
           <div style={{ textAlign: 'center', padding: '3rem' }}>Đang tải danh sách gói...</div>
         ) : (
           <div style={{ 
-            backgroundColor: '#1b1411', // Dark brownish tint
-            border: '1px solid #c25e00', 
-            borderRadius: '16px',
-            overflow: 'hidden'
+            backgroundColor: '#18181b', // Dark container
+            border: '1px solid rgba(255,255,255,0.1)', 
+            borderRadius: '12px',
+            overflow: 'hidden',
+            fontFamily: 'Inter, sans-serif'
           }}>
             {/* Orange Banner */}
             <div style={{ 
-              backgroundColor: '#c25e00', 
+              backgroundColor: '#d97706', 
               color: '#fff', 
               padding: '1rem 1.5rem', 
               display: 'flex', 
               justifyContent: 'space-between', 
               alignItems: 'center',
-              fontWeight: 600,
-              fontSize: '0.95rem'
+              fontWeight: 700,
+              fontSize: '1rem'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Clock size={18} /> Kết thúc sau
+                <Flame size={20} fill="currentColor" /> Kết thúc sau
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem', fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700 }}>
-                <span style={{ backgroundColor: '#a14d00', padding: '0.3rem 0.5rem', borderRadius: '4px' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700 }}>
+                <span style={{ backgroundColor: '#b45309', padding: '0.35rem 0.5rem', borderRadius: '4px', minWidth: '32px', textAlign: 'center' }}>
                   {timeLeft.days.toString().padStart(2, '0')}
-                </span>:
-                <span style={{ backgroundColor: '#a14d00', padding: '0.3rem 0.5rem', borderRadius: '4px' }}>
+                </span><span style={{ color: '#fcd34d' }}>:</span>
+                <span style={{ backgroundColor: '#b45309', padding: '0.35rem 0.5rem', borderRadius: '4px', minWidth: '32px', textAlign: 'center' }}>
                   {timeLeft.hours.toString().padStart(2, '0')}
-                </span>:
-                <span style={{ backgroundColor: '#a14d00', padding: '0.3rem 0.5rem', borderRadius: '4px' }}>
+                </span><span style={{ color: '#fcd34d' }}>:</span>
+                <span style={{ backgroundColor: '#b45309', padding: '0.35rem 0.5rem', borderRadius: '4px', minWidth: '32px', textAlign: 'center' }}>
                   {timeLeft.minutes.toString().padStart(2, '0')}
-                </span>:
-                <span style={{ backgroundColor: '#a14d00', padding: '0.3rem 0.5rem', borderRadius: '4px' }}>
+                </span><span style={{ color: '#fcd34d' }}>:</span>
+                <span style={{ backgroundColor: '#b45309', padding: '0.35rem 0.5rem', borderRadius: '4px', minWidth: '32px', textAlign: 'center' }}>
                   {timeLeft.seconds.toString().padStart(2, '0')}
                 </span>
               </div>
@@ -296,8 +291,19 @@ export function PackagesPage() {
 
             {/* Inner Content */}
             <div style={{ padding: '3rem 2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div style={{ color: '#f59e0b', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontWeight: 500 }}>
-                <Info size={16} /> Tất cả gói đều bao gồm phản hồi AI và câu hỏi theo ngành
+              <div style={{ 
+                backgroundColor: 'rgba(255,255,255,0.05)', 
+                color: '#a1a1aa', 
+                fontSize: '0.85rem', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem', 
+                marginBottom: '1.25rem', 
+                fontWeight: 500,
+                padding: '0.5rem 1rem',
+                borderRadius: '99px'
+              }}>
+                <Info size={16} color="#d97706" /> Tất cả gói đều bao gồm phản hồi AI và câu hỏi theo ngành
               </div>
               <h2 style={{ fontSize: '1.8rem', margin: '0 0 3rem 0', fontWeight: 800 }}>So sánh nhanh các gói</h2>
 
@@ -315,20 +321,24 @@ export function PackagesPage() {
                   flexWrap: 'wrap'
                 }}>
                   {packages.map((pkg, idx) => {
-                    const isPopular = pkg.isPopular; // STRICTLY FROM DB
+                    const isPopular = pkg.isPopular;
+                    const purpleColor = '#8b5cf6'; // matching the screenshot's soft purple
+                    const cardBorderColor = isPopular ? purpleColor : 'rgba(255,255,255,0.1)';
+                    const cardBgColor = '#111111';
+
                     return (
                     <div key={pkg._id} style={{
-                      backgroundColor: '#161821', // Dark blue-ish gray
-                      border: isPopular ? `1px solid ${pkg.color || '#6366f1'}` : '1px solid #2d3142',
-                      boxShadow: isPopular ? `0 0 20px ${pkg.color || '#6366f1'}33` : 'none',
-                      borderRadius: '16px',
-                      padding: '2.5rem 2rem',
+                      backgroundColor: cardBgColor,
+                      border: `1px solid ${cardBorderColor}`,
+                      borderRadius: '12px',
+                      padding: '2rem 1.75rem',
                       position: 'relative',
                       display: 'flex',
                       flexDirection: 'column',
                       flex: 1,
                       minWidth: '280px',
-                      maxWidth: '320px'
+                      maxWidth: '320px',
+                      boxShadow: isPopular ? `0 0 20px rgba(139, 92, 246, 0.15)` : 'none'
                     }}>
                       {isPopular && (
                         <div style={{
@@ -336,50 +346,61 @@ export function PackagesPage() {
                           top: '-14px',
                           left: '50%',
                           transform: 'translateX(-50%)',
-                          backgroundColor: pkg.color || '#6366f1',
+                          backgroundColor: purpleColor,
                           color: 'white',
-                          padding: '6px 20px',
+                          padding: '0.35rem 1.25rem',
                           borderRadius: '99px',
                           fontSize: '0.75rem',
                           fontWeight: '700',
                           textTransform: 'uppercase',
                           letterSpacing: '0.5px'
                         }}>
-                          Phổ biến nhất
+                          PHỔ BIẾN NHẤT
                         </div>
                       )}
 
-                    <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontWeight: 700 }}>{pkg.name}</h3>
+                    <h3 style={{ margin: '0 0 1.5rem 0', fontSize: '1.25rem', fontWeight: 700 }}>{pkg.name}</h3>
                     
                     {pkg.originalPrice > pkg.price && (
-                      <div style={{ color: 'rgba(255,255,255,0.3)', textDecoration: 'line-through', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
+                      <div style={{ color: '#71717a', textDecoration: 'line-through', fontSize: '0.9rem', marginBottom: '0.25rem', fontWeight: 600 }}>
                         {pkg.originalPrice.toLocaleString('vi-VN')}đ
                       </div>
                     )}
                     
-                    <div style={{ fontSize: '2.25rem', fontWeight: 800, marginBottom: '0.5rem', display: 'flex', alignItems: 'baseline', gap: '0.2rem' }}>
-                      {pkg.price.toLocaleString('vi-VN')} <span style={{ fontSize: '1.5rem', textDecoration: 'underline' }}>đ</span>
+                    <div style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '0.75rem', display: 'flex', alignItems: 'baseline', gap: '0.2rem', lineHeight: 1 }}>
+                      {pkg.price.toLocaleString('vi-VN')} <span style={{ fontSize: '1.25rem', textDecoration: 'underline' }}>đ</span>
                     </div>
 
                     {pkg.originalPrice > pkg.price && (
-                      <div style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: 600, marginBottom: '2rem' }}>
-                        Tiết kiệm {Math.round((1 - pkg.price/pkg.originalPrice) * 100)}%
+                      <div style={{ display: 'flex', marginBottom: '2rem' }}>
+                        <span style={{
+                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                          color: '#34d399', 
+                          fontSize: '0.75rem', 
+                          fontWeight: 700, 
+                          padding: '0.25rem 0.6rem',
+                          borderRadius: '99px'
+                        }}>
+                          Tiết kiệm {Math.round((1 - pkg.price/pkg.originalPrice) * 100)}%
+                        </span>
                       </div>
                     )}
 
                     <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 2rem 0', flex: 1, display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                      <li style={{ display: 'flex', gap: '0.75rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.8)', lineHeight: 1.4 }}>
-                        <div style={{ color: pkg.color || "#818cf8", flexShrink: 0, marginTop: '2px' }}><MonitorPlay size={18} /></div>
-                        <span><strong>{pkg.interviewAttempts} lượt</strong> luyện tập mô phỏng 1 buổi phỏng vấn thực tế</span>
+                      <li style={{ display: 'flex', gap: '0.75rem', fontSize: '0.85rem', color: '#e4e4e7', lineHeight: 1.5, fontWeight: 500 }}>
+                        <div style={{ color: purpleColor, flexShrink: 0, marginTop: '2px' }}><Video size={18} /></div>
+                        <span>{pkg.interviewAttempts > 1000 ? 'Không giới hạn' : pkg.interviewAttempts} lượt luyện tập mô phỏng 1 buổi phỏng vấn thực tế</span>
                       </li>
                       {pkg.features.map((feature, i) => (
-                        <li key={i} style={{ display: 'flex', gap: '0.75rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.8)', lineHeight: 1.4 }}>
-                          <div style={{ color: pkg.color || "#818cf8", flexShrink: 0, marginTop: '2px' }}><Check size={18} /></div>
-                          {feature}
+                        <li key={i} style={{ display: 'flex', gap: '0.75rem', fontSize: '0.85rem', color: '#e4e4e7', lineHeight: 1.5, fontWeight: 500 }}>
+                          <div style={{ color: purpleColor, flexShrink: 0, marginTop: '2px' }}>
+                            {i === 0 ? <FileQuestion size={18} /> : <Check size={18} />}
+                          </div>
+                          <span>{feature}</span>
                         </li>
                       ))}
-                      <li style={{ display: 'flex', gap: '0.75rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.8)', marginTop: 'auto' }}>
-                        <div style={{ color: 'rgba(255,255,255,0.5)', flexShrink: 0, marginTop: '2px' }}><Clock size={18} /></div>
+                      <li style={{ display: 'flex', gap: '0.75rem', fontSize: '0.85rem', color: '#e4e4e7', marginTop: 'auto', fontWeight: 500 }}>
+                        <div style={{ color: purpleColor, flexShrink: 0, marginTop: '2px' }}><Clock size={18} /></div>
                         {pkg.period}
                       </li>
                     </ul>
@@ -387,8 +408,8 @@ export function PackagesPage() {
                     <button 
                       onClick={() => handleSelectPackage(pkg)}
                       style={{
-                        backgroundColor: isPopular ? (pkg.color || '#6366f1') : 'transparent',
-                        border: isPopular ? `1px solid ${pkg.color || '#6366f1'}` : '1px solid rgba(255,255,255,0.2)',
+                        backgroundColor: isPopular ? purpleColor : 'transparent',
+                        border: isPopular ? `1px solid ${purpleColor}` : '1px solid rgba(255,255,255,0.2)',
                         color: 'white',
                         padding: '0.8rem',
                         borderRadius: '8px',
@@ -396,7 +417,8 @@ export function PackagesPage() {
                         fontWeight: 600,
                         cursor: 'pointer',
                         transition: 'all 0.2s',
-                        width: '100%'
+                        width: '100%',
+                        marginTop: 'auto'
                       }}
                       onMouseOver={e => !isPopular && (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)')}
                       onMouseOut={e => !isPopular && (e.currentTarget.style.backgroundColor = 'transparent')}

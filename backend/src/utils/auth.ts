@@ -36,11 +36,13 @@ export const serializeUser = (user: UserDocument) => {
   bio: user.bio,
   targetRole: user.targetRole,
   experienceLevel: user.experienceLevel,
+  language: user.language || 'vi',
   // Onboarding
   onboardingCompleted,
   industryGroup: user.industryGroup ?? '',
   industry: user.industry ?? '',
   specialization: user.specialization ?? '',
+  favoriteInterviewSets: user.favoriteInterviewSets?.map(id => id.toString()) || [],
   //
   skills: user.skills,
   streak: user.streak,

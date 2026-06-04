@@ -73,6 +73,31 @@ router.post('/upload', authRequired, upload.single('cv'), async (req, res) => {
 
     await newCv.save();
 
+    // Lấy thông tin JSON từ cvText để upsert vào LearnerProfile
+    if (cvText) {
+      try {
+        const { extractLearnerProfile } = await import('../services/aiService.js');
+        const { LearnerProfile } = await import('../models/LearnerProfile.js');
+        const profileData = await extractLearnerProfile(cvText);
+        if (profileData) {
+          await LearnerProfile.findOneAndUpdate(
+            { userId: user._id },
+            { 
+              targetRole: profileData.targetRole || '',
+              skills: profileData.skills || [],
+              experience: profileData.experience || [],
+              strengths: profileData.strengths || [],
+              weaknesses: profileData.weaknesses || [],
+              goals: profileData.goals || []
+            },
+            { upsert: true, new: true }
+          );
+        }
+      } catch (err) {
+        logger.error(`[POST /cvs/upload] Failed to upsert LearnerProfile: ${err}`);
+      }
+    }
+
     return res.status(201).json({ message: 'Tải lên CV thành công', cv: newCv });
   } catch (error) {
     logger.error(`[POST /cvs/upload] ${error}`);

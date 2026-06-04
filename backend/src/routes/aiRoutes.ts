@@ -206,10 +206,42 @@ router.post('/realtime/token', authRequired, async (req, res) => {
     topic: String(req.body.topic ?? 'Luyện tập hội thoại SpeakAI').trim() || 'Luyện tập hội thoại SpeakAI',
     targetRole: req.user?.targetRole ?? '',
     profileSummary: req.user?.bio ?? '',
-    userName: req.user?.name ?? ''
+    userName: req.user?.name ?? '',
+    userId: req.user?._id?.toString()
   });
 
   return res.json({ session });
+});
+
+router.post('/realtime/end', authRequired, async (req, res) => {
+  const { transcript, mode, topic } = req.body;
+  if (!transcript || typeof transcript !== 'string') {
+    return res.status(400).json({ message: 'Vui lòng cung cấp transcript của phiên hội thoại.' });
+  }
+
+  try {
+    const { generateSessionSummaryJSON } = await import('../services/aiService.js');
+    const summaryData = await generateSessionSummaryJSON(transcript, mode || 'interview', topic || 'Luyện tập SpeakAI');
+    
+    // Save to SessionMemory
+    const { SessionMemory } = await import('../models/SessionMemory.js');
+    const sessionId = `s_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    await SessionMemory.create({
+      userId: req.user?._id,
+      sessionId,
+      mode: mode || 'interview',
+      topic: topic || 'Luyện tập SpeakAI',
+      scores: summaryData.scores,
+      strengths:        summaryData.strengths        ?? [],
+      improvements:     summaryData.improvements     ?? [],
+      promisedNextTime: summaryData.promisedNextTime ?? [],
+      summary: summaryData.summary,
+    });
+
+    return res.json({ success: true, feedback: summaryData });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Lỗi server khi tổng kết phiên.' });
+  }
 });
 
 router.post('/tts', authRequired, async (req, res) => {

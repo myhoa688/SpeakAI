@@ -1,10 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
-import { ChevronDown, Search, Bot, ChevronRight, PlayCircle, BookOpen, Video, ArrowRight, ChevronLeft, Headphones } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { ChevronDown, Search, Bot, ChevronRight, PlayCircle, BookOpen, Video, ArrowRight, ChevronLeft, Headphones, X, Plus, Clock, Calendar } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
-import { PracticeLanguageModal } from '../components/PracticeLanguageModal';
 import './DashboardPage.css'; // For shared mock-cta-card and dashboard-panel styles
 
 interface Question {
@@ -23,6 +22,7 @@ export function QuestionBankPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,13 +37,24 @@ export function QuestionBankPage() {
   const [searchText, setSearchText] = useState('');
   const [openDropdown, setOpenDropdown] = useState<'difficulty' | 'industry' | null>(null);
 
-  // Language Modal State
-  const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
-  const [isLanguageModalOpen, setIsLanguageModalOpen] = useState(false);
+
+  // Create Modal State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newQuestionText, setNewQuestionText] = useState('');
+  const [newQuestionLang, setNewQuestionLang] = useState('vi');
+  const [isCreating, setIsCreating] = useState(false);
+
+  // History State
+  const [practiceHistory, setPracticeHistory] = useState<any[]>([]);
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const initialSearch = params.get('search');
+    if (initialSearch) {
+      setSearchText(initialSearch);
+    }
     void loadData();
-  }, []);
+  }, [location.search]);
 
   const handleDifficultyChange = (val: string) => {
     setFilterDifficulty(val);
@@ -102,6 +113,33 @@ export function QuestionBankPage() {
     } catch {
       // silently fail
     }
+
+    try {
+      const [histRes, interviewRes] = await Promise.all([
+        api.get('/practice/sessions').catch(() => ({ data: { sessions: [] } })),
+        api.get('/interviews/history').catch(() => ({ data: { sessions: [] } }))
+      ]);
+
+      const pSessions = (histRes.data.sessions || []).map((s: any) => ({
+        ...s,
+        _type: 'practice',
+        displayDate: new Date(s.createdAt)
+      }));
+
+      const iSessions = (interviewRes.data.sessions || []).map((s: any) => ({
+        ...s,
+        _type: 'interview',
+        displayDate: new Date(s.completedAt || s.createdAt)
+      }));
+
+      const merged = [...pSessions, ...iSessions]
+        .sort((a, b) => b.displayDate.getTime() - a.displayDate.getTime())
+        .slice(0, 50);
+
+      setPracticeHistory(merged);
+    } catch {
+      // silently fail
+    }
   };
 
   const nextSet = () => {
@@ -120,28 +158,23 @@ export function QuestionBankPage() {
   const currentSet = featuredSets[currentSetIndex];
 
   const handlePracticeClick = (question: Question) => {
-    const storedLang = localStorage.getItem('practiceLanguage');
-    const remember = localStorage.getItem('rememberPracticeLanguage') === 'true';
-    
-    if (storedLang && remember) {
-      navigate(`/questions/${question.id}/practice`, { state: { question, language: storedLang } });
-    } else {
-      setSelectedQuestion(question);
-      setIsLanguageModalOpen(true);
-    }
+    navigate(`/questions/${question.id}/practice`, { state: { question, language: 'vi' } });
   };
-
-  const handleSelectLanguage = (langCode: string, remember: boolean) => {
-    if (remember) {
-      localStorage.setItem('practiceLanguage', langCode);
-      localStorage.setItem('rememberPracticeLanguage', 'true');
-    } else {
-      localStorage.removeItem('practiceLanguage');
-      localStorage.setItem('rememberPracticeLanguage', 'false');
-    }
-    setIsLanguageModalOpen(false);
-    if (selectedQuestion) {
-      navigate(`/questions/${selectedQuestion.id}/practice`, { state: { question: selectedQuestion, language: langCode } });
+  const handleCreateQuestion = async () => {
+    if (!newQuestionText.trim() || isCreating) return;
+    setIsCreating(true);
+    try {
+      const res = await api.post('/questions', {
+        question: newQuestionText
+      });
+      setIsCreateModalOpen(false);
+      setNewQuestionText('');
+      navigate(`/questions/${res.data.id}/practice`, { state: { question: res.data, language: newQuestionLang } });
+    } catch (error) {
+      console.error(error);
+      alert('Có lỗi xảy ra khi tạo câu hỏi.');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -262,10 +295,6 @@ export function QuestionBankPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', padding: '0 0.5rem' }}>
               <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Hiển thị <strong>{filteredList.length}</strong> Kết quả</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Hiển thị câu hỏi bằng:</span>
-                <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '100px', color: '#fff', fontSize: '0.85rem' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>文A</span> display-language <ChevronDown size={14} />
-                </button>
                 <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '100px', color: '#fff', fontSize: '0.85rem' }}>
                   <span style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ width: '12px', height: '1.5px', background: 'currentColor' }}></div>
@@ -274,8 +303,10 @@ export function QuestionBankPage() {
                   </span> 
                   Phổ biến nhất <ChevronDown size={14} />
                 </button>
-                <button style={{ background: '#5c56f5', color: '#fff', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '100px', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  + Thêm câu hỏi
+                <button 
+                  onClick={() => setIsCreateModalOpen(true)}
+                  style={{ background: '#5c56f5', color: '#fff', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '100px', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <Plus size={16} /> Thêm câu hỏi
                 </button>
               </div>
             </div>
@@ -495,24 +526,121 @@ export function QuestionBankPage() {
               </h3>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', marginTop: '1rem' }}>
-              <Headphones size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
-              <h4 style={{ color: '#fff', fontSize: '1.1rem', margin: '0 0 0.5rem' }}>Chưa có buổi luyện tập nào</h4>
-              <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: 1.5, maxWidth: '250px' }}>
-                Bắt đầu buổi luyện tập đầu tiên để xem tiến trình của bạn tại đây
-              </p>
-            </div>
+            {practiceHistory.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', marginTop: '1rem' }}>
+                <Headphones size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
+                <h4 style={{ color: '#fff', fontSize: '1.1rem', margin: '0 0 0.5rem' }}>Chưa có buổi luyện tập nào</h4>
+                <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: 1.5, maxWidth: '250px' }}>
+                  Bắt đầu buổi luyện tập đầu tiên để xem tiến trình của bạn tại đây
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '400px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                {practiceHistory.map((session, idx) => (
+                  <div key={idx} style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => session._type === 'interview' ? navigate(`/interview/${session.id}/result`) : navigate(`/questions/${session.questionId}/result?sessionId=${session._id}`)}>
+                    <div>
+                      <div style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 500, marginBottom: '0.5rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {session._type === 'interview' ? `Lộ trình phỏng vấn: ${session.specialization || session.industry || 'Chung'}` : (session.topic || 'Câu hỏi tùy chỉnh')}
+                      </div>
+                      <div style={{ display: 'flex', gap: '1rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Calendar size={12} /> {session.displayDate.toLocaleDateString('vi-VN')}</span>
+                        {session._type === 'practice' ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Clock size={12} /> {Math.round(session.durationSeconds || 0)} giây</span>
+                        ) : (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><BookOpen size={12} /> {session.totalQuestions || 0} câu hỏi</span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+                      {session._type === 'practice' ? (
+                        <div style={{ background: session.passed ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: session.passed ? '#10b981' : '#ef4444', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>
+                          {session.passed ? 'ĐẠT' : 'CHƯA ĐẠT'}
+                        </div>
+                      ) : (
+                        <div style={{ background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>
+                          {session.overallScore} ĐIỂM
+                        </div>
+                      )}
+                      <ArrowRight size={16} color="var(--text-secondary)" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
       </div>
 
-      <PracticeLanguageModal 
-        isOpen={isLanguageModalOpen}
-        onClose={() => setIsLanguageModalOpen(false)}
-        questionText={selectedQuestion?.question || ''}
-        onSelectLanguage={handleSelectLanguage}
-      />
+
+      {isCreateModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', padding: '1rem' }}>
+          <div style={{ background: '#121316', width: '100%', maxWidth: '600px', borderRadius: '16px', padding: '2rem', border: '1px solid var(--border)', position: 'relative' }}>
+            <button 
+              onClick={() => setIsCreateModalOpen(false)}
+              style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+            >
+              <X size={20} />
+            </button>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '2rem' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(92, 86, 245, 0.1)', color: '#5c56f5', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
+                <Plus size={24} />
+              </div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#fff', margin: '0 0 0.5rem' }}>Tạo câu hỏi mới</h2>
+              <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.9rem' }}>Tạo câu hỏi riêng để luyện tập kỹ năng phỏng vấn.</p>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 600, color: '#fff', marginBottom: '0.5rem' }}>Câu hỏi</label>
+              <div style={{ position: 'relative' }}>
+                <textarea 
+                  value={newQuestionText}
+                  onChange={(e) => {
+                    if (e.target.value.length <= 2000) setNewQuestionText(e.target.value);
+                  }}
+                  placeholder="Nhập câu hỏi bạn muốn luyện tập..."
+                  style={{ width: '100%', minHeight: '120px', padding: '1rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: '12px', color: '#fff', fontSize: '0.95rem', resize: 'vertical' }}
+                />
+                <div style={{ position: 'absolute', bottom: '1rem', right: '1rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  {newQuestionText.length}/2000
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '2rem' }}>
+              <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 600, color: '#fff', marginBottom: '0.5rem' }}>Ngôn ngữ</label>
+              <div style={{ position: 'relative' }}>
+                <select 
+                  value={newQuestionLang}
+                  onChange={(e) => setNewQuestionLang(e.target.value)}
+                  style={{ width: '100%', padding: '0.8rem 1rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: '12px', color: '#fff', fontSize: '0.95rem', appearance: 'none' }}
+                >
+                  <option value="vi" style={{ background: '#121316' }}>VN Tiếng Việt</option>
+                  <option value="en" style={{ background: '#121316' }}>US Tiếng Anh</option>
+                </select>
+                <ChevronDown size={16} color="var(--text-secondary)" style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <button 
+                onClick={() => setIsCreateModalOpen(false)}
+                style={{ padding: '0.8rem', background: 'transparent', border: '1px solid var(--border)', borderRadius: '100px', color: '#fff', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Hủy
+              </button>
+              <button 
+                onClick={handleCreateQuestion}
+                disabled={!newQuestionText.trim() || isCreating}
+                style={{ padding: '0.8rem', background: '#5c56f5', border: 'none', borderRadius: '100px', color: '#fff', fontSize: '0.95rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: (!newQuestionText.trim() || isCreating) ? 'not-allowed' : 'pointer', opacity: (!newQuestionText.trim() || isCreating) ? 0.6 : 1 }}
+              >
+                {isCreating ? 'Đang tạo...' : <><PlayCircle size={18} /> Tạo & Luyện tập</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

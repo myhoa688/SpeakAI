@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Camera, ChevronDown, Lock, LogOut, Bell, Languages, User, AlertTriangle, ReceiptText } from 'lucide-react';
+import { Camera, ChevronDown, Lock, LogOut, Bell, Languages, User, AlertTriangle, ReceiptText, Gift, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
@@ -10,6 +10,10 @@ export function ProfilePage() {
   const { user, updateUser, logout } = useAuth();
   
   const [activeTab, setActiveTab] = useState<'profile' | 'history'>('profile');
+  const [expandedLang, setExpandedLang] = useState(true);
+  const [expandedPwd, setExpandedPwd] = useState(true);
+  const [expandedExchange, setExpandedExchange] = useState(true);
+  
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -20,6 +24,18 @@ export function ProfilePage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const [lang, setLang] = useState((user as any)?.language || 'vi');
+  const [langMessage, setLangMessage] = useState('');
+
+  const [pwdForm, setPwdForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [pwdMessage, setPwdMessage] = useState('');
+  const [pwdError, setPwdError] = useState('');
+  const [savingPwd, setSavingPwd] = useState(false);
+
+  const [exchangeMessage, setExchangeMessage] = useState('');
+  const [exchangeError, setExchangeError] = useState('');
+  const [exchanging, setExchanging] = useState(false);
 
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
@@ -66,10 +82,50 @@ export function ProfilePage() {
     }
   };
 
-  const handleDeleteAccount = () => {
-    if (window.confirm(t('profilePage.confirmDelete', 'Bạn có chắc chắn muốn xóa tài khoản? Hành động này không thể hoàn tác.'))) {
-      // Implement delete account logic here
-      alert(t('profilePage.deleteNotImplemented', 'Tính năng xóa tài khoản đang được phát triển.'));
+  const handleSaveLanguage = async () => {
+    setLangMessage('');
+    try {
+      const response = await api.patch('/users/profile', { language: lang });
+      updateUser(response.data.user);
+      setLangMessage('Đã lưu ngôn ngữ.');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSavePassword = async () => {
+    setPwdMessage('');
+    setPwdError('');
+    if (pwdForm.newPassword !== pwdForm.confirmPassword) {
+      return setPwdError('Mật khẩu xác nhận không khớp.');
+    }
+    setSavingPwd(true);
+    try {
+      const res = await api.patch('/auth/change-password', {
+        currentPassword: pwdForm.currentPassword,
+        newPassword: pwdForm.newPassword
+      });
+      setPwdMessage(res.data.message);
+      setPwdForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err: any) {
+      setPwdError(err.response?.data?.message || 'Có lỗi xảy ra.');
+    } finally {
+      setSavingPwd(false);
+    }
+  };
+
+  const handleExchangeXp = async () => {
+    setExchangeMessage('');
+    setExchangeError('');
+    setExchanging(true);
+    try {
+      const res = await api.post('/users/exchange-xp');
+      setExchangeMessage(res.data.message);
+      updateUser(res.data.user);
+    } catch (err: any) {
+      setExchangeError(err.response?.data?.message || 'Có lỗi xảy ra.');
+    } finally {
+      setExchanging(false);
     }
   };
 
@@ -185,27 +241,111 @@ export function ProfilePage() {
           {/* Right Column: Settings & Actions */}
           <div className="profile-settings-column">
             <div className="profile-accordion">
-              <div className="profile-accordion-title">
-                <Languages size={18} className="profile-accordion-icon" />
-                {t('profilePage.languageSettings', 'Cài đặt ngôn ngữ')}
+              <div className="profile-accordion-header" onClick={() => setExpandedLang(!expandedLang)}>
+                <div className="profile-accordion-title">
+                  <Languages size={18} className="profile-accordion-icon" />
+                  {t('profilePage.languageSettings', 'Cài đặt ngôn ngữ')}
+                </div>
+                <ChevronDown size={18} className="profile-chevron" style={{ transform: expandedLang ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
               </div>
-              <ChevronDown size={18} className="profile-chevron" />
+              {expandedLang && (
+                <div className="profile-accordion-content">
+                  <div className="profile-form-group">
+                    <label className="profile-label">{t('profilePage.displayLanguage', 'Ngôn ngữ hiển thị')}</label>
+                    <select className="profile-input" value={lang} onChange={(e) => setLang(e.target.value)}>
+                      <option value="vi">Tiếng Việt</option>
+                      <option value="en">English</option>
+                    </select>
+                  </div>
+                  {langMessage && <p style={{ color: '#22c55e', fontSize: 13, marginTop: 8 }}>{langMessage}</p>}
+                  <div className="profile-save-wrapper" style={{ marginTop: 16 }}>
+                    <button className="profile-save-btn" onClick={handleSaveLanguage}>
+                      {t('profilePage.saveLanguage', 'Lưu ngôn ngữ')}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="profile-accordion">
-              <div className="profile-accordion-title">
-                <Lock size={18} className="profile-accordion-icon" />
-                {t('profilePage.changePassword', 'Đổi mật khẩu')}
+              <div className="profile-accordion-header" onClick={() => setExpandedPwd(!expandedPwd)}>
+                <div className="profile-accordion-title">
+                  <Lock size={18} className="profile-accordion-icon" />
+                  {t('profilePage.changePassword', 'Đổi mật khẩu')}
+                </div>
+                <ChevronDown size={18} className="profile-chevron" style={{ transform: expandedPwd ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
               </div>
-              <ChevronDown size={18} className="profile-chevron" />
+              {expandedPwd && (
+                <div className="profile-accordion-content">
+                  <div className="profile-form-group">
+                    <label className="profile-label required">{t('profilePage.currentPassword', 'Mật khẩu hiện tại')}</label>
+                    <input type="password" className="profile-input" value={pwdForm.currentPassword} onChange={e => setPwdForm(p => ({...p, currentPassword: e.target.value}))} />
+                  </div>
+                  <div className="profile-form-row">
+                    <div className="profile-form-group" style={{ marginBottom: 0 }}>
+                      <label className="profile-label required">{t('profilePage.newPassword', 'Mật khẩu mới')}</label>
+                      <input type="password" className="profile-input" value={pwdForm.newPassword} onChange={e => setPwdForm(p => ({...p, newPassword: e.target.value}))} />
+                      <span className="profile-input-hint">{t('profilePage.passwordHint', 'Tối thiểu 8 ký tự')}</span>
+                    </div>
+                    <div className="profile-form-group" style={{ marginBottom: 0 }}>
+                      <label className="profile-label required">{t('profilePage.confirmPassword', 'Xác nhận mật khẩu')}</label>
+                      <input type="password" className="profile-input" value={pwdForm.confirmPassword} onChange={e => setPwdForm(p => ({...p, confirmPassword: e.target.value}))} />
+                    </div>
+                  </div>
+                  {pwdMessage && <p style={{ color: '#22c55e', fontSize: 13, marginTop: 16 }}>{pwdMessage}</p>}
+                  {pwdError && <p style={{ color: '#ef4444', fontSize: 13, marginTop: 16 }}>{pwdError}</p>}
+                  <div className="profile-save-wrapper" style={{ marginTop: 24 }}>
+                    <button className="profile-save-btn" onClick={handleSavePassword} disabled={savingPwd}>
+                      {savingPwd ? 'Đang cập nhật...' : t('profilePage.updatePasswordBtn', 'Cập nhật mật khẩu')}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="profile-accordion">
-              <div className="profile-accordion-title">
-                <Bell size={18} className="profile-accordion-icon" />
-                {t('profilePage.notificationOptions', 'Tùy chọn thông báo')}
+              <div className="profile-accordion-header" onClick={() => setExpandedExchange(!expandedExchange)}>
+                <div className="profile-accordion-title">
+                  <Gift size={18} className="profile-accordion-icon" />
+                  Đổi điểm kinh nghiệm
+                </div>
+                <ChevronDown size={18} className="profile-chevron" style={{ transform: expandedExchange ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
               </div>
-              <ChevronDown size={18} className="profile-chevron" />
+              {expandedExchange && (
+                <div className="profile-accordion-content">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <div>
+                      <span className="profile-label">Tổng điểm kinh nghiệm</span>
+                      <div style={{ fontSize: 24, fontWeight: 'bold', color: '#eab308', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Star size={20} fill="#eab308" /> {user?.totalXp || 0} XP
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span className="profile-label">Lượt phỏng vấn</span>
+                      <div style={{ fontSize: 24, fontWeight: 'bold', color: '#10b981' }}>
+                        {user?.remainingInterviews || 0}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="profile-action-info" style={{ marginBottom: 16 }}>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>Sử dụng 500 XP để đổi lấy 1 lượt phỏng vấn mới.</p>
+                  </div>
+
+                  {exchangeMessage && <p style={{ color: '#22c55e', fontSize: 13, marginBottom: 16 }}>{exchangeMessage}</p>}
+                  {exchangeError && <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 16 }}>{exchangeError}</p>}
+                  
+                  <div className="profile-save-wrapper">
+                    <button 
+                      className="profile-save-btn" 
+                      onClick={handleExchangeXp} 
+                      disabled={exchanging || (user?.totalXp || 0) < 500}
+                    >
+                      {exchanging ? 'Đang đổi...' : 'Đổi 500 XP = 1 lượt phỏng vấn'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="profile-action-card" style={{ marginTop: 24 }}>
@@ -224,22 +364,7 @@ export function ProfilePage() {
               </div>
             </div>
 
-            <div className="profile-danger-card" onClick={handleDeleteAccount} style={{ marginTop: 24 }}>
-              <AlertTriangle size={18} />
-              {t('profilePage.dangerAction', 'Hành động không thể hoàn tác')}
-            </div>
-            
-            <div className="profile-action-card" style={{ marginTop: 8, borderColor: 'rgba(239, 68, 68, 0.2)' }}>
-              <div className="profile-action-content">
-                <div className="profile-action-info">
-                  <h4 style={{ color: '#fff' }}>{t('profilePage.deleteAccountTitle', 'Xóa tài khoản')}</h4>
-                  <p>{t('profilePage.deleteAccountDesc', 'Khi bạn xóa tài khoản, không thể khôi phục lại. Vui lòng cân nhắc kỹ.')}</p>
-                </div>
-                <button className="profile-btn-outline" style={{ borderColor: '#ef4444', color: '#ef4444' }} onClick={handleDeleteAccount}>
-                  {t('profilePage.deleteAccountBtn', 'Xóa tài khoản')}
-                </button>
-              </div>
-            </div>
+
           </div>
         </div>
       )}

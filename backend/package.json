@@ -11,6 +11,7 @@
     "seed:interview-sets": "tsx src/scripts/seedInterviewSets.ts"
   },
   "dependencies": {
+    "@notionhq/client": "^5.22.0",
     "@payos/node": "^2.0.5",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",

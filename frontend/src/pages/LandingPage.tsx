@@ -84,8 +84,91 @@ function AvatarLetter({ name }: { name: string }) {
   );
 }
 
+function ParticlesBackground() {
+  useEffect(() => {
+    const canvas = document.getElementById('particles-canvas') as HTMLCanvasElement;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+
+    const particles: { x: number, y: number, radius: number, vx: number, vy: number, alpha: number }[] = [];
+    const particleCount = Math.floor(width / 15);
+
+    for (let i = 0; i < particleCount; i++) {
+      particles.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        radius: Math.random() * 2 + 0.5,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        alpha: Math.random() * 0.5 + 0.2
+      });
+    }
+
+    let animationFrameId: number;
+
+    const render = () => {
+      ctx.clearRect(0, 0, width, height);
+
+      particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+
+        if (p.x < 0) p.x = width;
+        if (p.x > width) p.x = 0;
+        if (p.y < 0) p.y = height;
+        if (p.y > height) p.y = 0;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(99, 102, 241, ${p.alpha})`;
+        ctx.fill();
+      });
+
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    const handleResize = () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  return (
+    <canvas
+      id="particles-canvas"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 0,
+        opacity: 0.8
+      }}
+    />
+  );
+}
+
 export function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [stats, setStats] = useState({
     totalSets: 0,
     totalAttempts: 0,
@@ -101,10 +184,79 @@ export function LandingPage() {
     api.get('/interview-sets/stats').then(res => {
       if (res.data) setStats(res.data);
     }).catch(() => {});
+
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePos({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
   return (
-    <div className="landing-x-wrapper">
+    <div className="landing-x-wrapper" style={{ position: 'relative', overflowX: 'hidden' }}>
+      <style>{`
+        .landing-x-wrapper {
+          color: var(--text-primary);
+        }
+        .x-floating-card, .x-feature-card {
+          backdrop-filter: blur(12px);
+          transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+          position: relative;
+          overflow: hidden;
+        }
+        .x-floating-card:hover, .x-feature-card:hover {
+          transform: translateY(-5px) scale(1.02) !important;
+          border-color: rgba(99,102,241,0.5) !important;
+          box-shadow: 0 20px 40px rgba(0,0,0,0.15), 0 0 20px rgba(99,102,241,0.15) !important;
+        }
+        .x-feature-card::before {
+          content: '';
+          position: absolute;
+          top: 0; left: -100%;
+          width: 50%; height: 100%;
+          background: linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent);
+          transform: skewX(-20deg);
+          transition: all 0.5s ease;
+        }
+        .x-feature-card:hover::before {
+          left: 150%;
+        }
+        .x-btn-primary {
+          transition: all 0.3s ease !important;
+        }
+        .x-btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 25px rgba(99,102,241,0.4) !important;
+        }
+        .x-faq-item {
+          transition: all 0.3s ease !important;
+        }
+        .x-faq-item:hover {
+          border-color: rgba(99,102,241,0.4) !important;
+        }
+        .x-header, .x-hero, section {
+          position: relative;
+          z-index: 10;
+        }
+      `}</style>
+      
+      <ParticlesBackground />
+      
+      <div 
+        style={{
+          position: 'fixed',
+          top: mousePos.y - 400,
+          left: mousePos.x - 400,
+          width: 800,
+          height: 800,
+          background: 'radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 60%)',
+          borderRadius: '50%',
+          pointerEvents: 'none',
+          zIndex: 0,
+          transition: 'opacity 0.3s ease',
+        }}
+      />
+      
       {/* HEADER */}
       <header className="x-header">
         <div className="x-container x-header-inner">

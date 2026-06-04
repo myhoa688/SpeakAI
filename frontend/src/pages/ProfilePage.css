@@ -248,17 +248,28 @@
   background-color: #1a1a1a;
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 12px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.profile-accordion-header {
   padding: 20px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
-.profile-accordion:hover {
+.profile-accordion-header:hover {
   background-color: rgba(255, 255, 255, 0.03);
+}
+
+.profile-accordion-content {
+  padding: 0 24px 24px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: -10px;
+  padding-top: 24px;
 }
 
 .profile-accordion-title {

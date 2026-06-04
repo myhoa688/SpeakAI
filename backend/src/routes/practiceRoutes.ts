@@ -113,6 +113,13 @@ router.post('/sessions', authRequired, async (req, res) => {
   }
 });
 
+router.get('/sessions', authRequired, async (req, res) => {
+  const sessions = await PracticeSession.find({ userId: req.user!._id })
+    .sort({ createdAt: -1 })
+    .limit(50); // limit to 50 recent sessions for the dashboard
+  return res.json({ sessions });
+});
+
 router.get('/sessions/:id', authRequired, async (req, res) => {
   const session = await PracticeSession.findOne({ _id: req.params.id, userId: req.user!._id })
     .populate('questionId');

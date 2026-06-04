@@ -103,19 +103,27 @@ export function AdminInterviewSets() {
   };
 
   const handleGenerateAI = async () => {
-    if (!form.jobDescription.trim()) {
-      setErr('Vui lòng nhập JD (Job Description) trước khi dùng AI.');
+    if (!form.title.trim() || !form.company.trim() || !form.jobDescription.trim()) {
+      setErr('Vui lòng nhập Tiêu đề, Công ty và JD (Job Description) trước khi dùng AI.');
       return;
     }
     setGenerating(true);
     setErr('');
     try {
-      // Mock AI call
-      await new Promise(r => setTimeout(r, 2000));
-      setForm(f => ({ ...f, questionCount: '12', difficulty: 'hard', durationMinutes: '30' }));
-      setMsg('Đã tạo thành công 12 câu hỏi từ JD (Mô phỏng).');
-    } catch {
-      setErr('Lỗi khi gọi AI.');
+      const res = await api.post('/admin/interview-sets/generate-from-jd', {
+        jdText: form.jobDescription,
+        company: form.company,
+        title: form.title,
+        industry: form.industry,
+        experienceLevel: form.experienceLevel,
+        difficulty: form.difficulty,
+        questionCount: form.questionCount
+      });
+      setMsg(`Tạo thành công ${res.data.questions?.length || 12} câu hỏi từ JD.`);
+      setModal(null);
+      await load(1);
+    } catch (e: any) {
+      setErr(e.response?.data?.message || 'Lỗi khi gọi AI. Vui lòng thử lại.');
     } finally {
       setGenerating(false);
     }

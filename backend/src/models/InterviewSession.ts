@@ -41,7 +41,8 @@ const interviewSessionSchema = new Schema(
     status: { type: String, enum: ['in_progress', 'completed'], default: 'in_progress', index: true },
     language: { type: String, default: 'vi' },
     xpEarned: { type: Number, default: 0 },
-    completedAt: { type: Date, default: null }
+    completedAt: { type: Date, default: null },
+    predefinedQuestions: { type: [Schema.Types.Mixed], default: [] }
   },
   {
     timestamps: true

@@ -25,6 +25,7 @@ const userSchema = new Schema(
     bio: { type: String, default: '' },
     targetRole: { type: String, default: '' },
     experienceLevel: { type: String, default: 'beginner' },
+    language: { type: String, default: 'vi' },
     // Onboarding fields
     onboardingCompleted: { type: Boolean, default: false },
     industryGroup: { type: String, default: '' },

@@ -88,13 +88,14 @@ router.get('/dashboard', authRequired, async (req, res) => {
 
 router.patch('/profile', authRequired, async (req, res) => {
   const user = req.user!;
-  const { name, bio, targetRole, experienceLevel, skills, avatarUrl } = req.body as {
+  const { name, bio, targetRole, experienceLevel, skills, avatarUrl, language } = req.body as {
     name?: string;
     bio?: string;
     targetRole?: string;
     experienceLevel?: string;
     skills?: string[] | string;
     avatarUrl?: string;
+    language?: string;
   };
 
   if (name) user.name = name.trim();
@@ -102,6 +103,7 @@ router.patch('/profile', authRequired, async (req, res) => {
   if (targetRole !== undefined) user.targetRole = targetRole.trim();
   if (experienceLevel !== undefined) user.experienceLevel = experienceLevel.trim() || 'beginner';
   if (avatarUrl !== undefined) user.avatarUrl = avatarUrl.trim();
+  if (language !== undefined) user.language = language.trim() || 'vi';
   if (skills !== undefined) {
     user.skills = Array.isArray(skills)
       ? skills.map((item) => item.trim()).filter(Boolean)
@@ -136,6 +138,24 @@ router.post('/goals/:goalKey/claim', authRequired, async (req, res) => {
       message: error instanceof Error ? error.message : 'Không thể nhận thưởng lúc này.'
     });
   }
+});
+
+router.post('/exchange-xp', authRequired, async (req, res) => {
+  const user = req.user!;
+  const XP_COST = 500;
+
+  if (user.totalXp < XP_COST) {
+    return res.status(400).json({ message: 'Không đủ điểm kinh nghiệm (XP) để đổi lượt phỏng vấn.' });
+  }
+
+  user.totalXp -= XP_COST;
+  user.remainingInterviews = (user.remainingInterviews || 0) + 1;
+  await user.save();
+
+  return res.json({
+    message: 'Đổi lượt phỏng vấn thành công!',
+    user: serializeUser(user)
+  });
 });
 
 export default router;

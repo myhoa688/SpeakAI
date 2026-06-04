@@ -17,5 +17,8 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "notion-to-md": "^3.1.9"
   }
 }

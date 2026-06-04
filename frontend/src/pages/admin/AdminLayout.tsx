@@ -52,7 +52,7 @@ export function AdminLayout() {
         </nav>
 
         <div className="admin-sidebar-footer">
-          <Link to="/" className="admin-nav-item">
+          <Link to="/dashboard" className="admin-nav-item">
             <Home size={20} />
             <span>Về trang chính</span>
           </Link>

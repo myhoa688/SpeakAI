@@ -5,7 +5,7 @@ import {
   MessageSquare, Volume2, CheckCircle2, AlertTriangle, Lightbulb, 
   BookOpen, FileText, Mic2, Star,
   Headphones, Gauge, Trophy, Smile, Sparkles, ThumbsUp, AlertCircle,
-  AlignLeft, Copy, Download, GraduationCap, BookX, ChevronDown, ChevronUp, ArrowRight
+  AlignLeft, Copy, Download, GraduationCap, ChevronDown, ChevronUp, ArrowRight
 } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -429,20 +429,6 @@ export function QuestionResultPage() {
             <div style={{ color: '#d1d5db', fontSize: '0.95rem', lineHeight: 1.7, maxHeight: '500px', overflowY: 'auto', paddingRight: '0.5rem' }}>
                {sessionData.transcript || "Không có nội dung nhận diện."}
             </div>
-          </div>
-
-          {/* Recommendations */}
-          <div style={{ background: '#18191b', padding: '1.5rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-               <h3 style={{ margin: 0, color: '#f9fafb', fontSize: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                 <GraduationCap size={18} color="#a78bfa" /> Khóa học đề xuất
-               </h3>
-               <span style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#a78bfa', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700 }}>UDEMY</span>
-             </div>
-             <div style={{ background: '#111315', padding: '2rem 1rem', borderRadius: '12px', textAlign: 'center', color: '#9ca3af', fontSize: '0.9rem' }}>
-                <BookX size={24} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
-                Đề xuất khóa học hiện không khả dụng
-             </div>
           </div>
 
           <div style={{ background: '#18191b', padding: '1.5rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>

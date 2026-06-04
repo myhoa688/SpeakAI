@@ -157,7 +157,7 @@ export function AppShell() {
           </div>
           <div className="profile-info">
             <h4 className="profile-name">{user?.name || '0986_Nguyễn Duy K...'}</h4>
-            <span className="profile-meta">{user?.remainingInterviews ?? 0} lượt</span>
+            <span className="profile-meta">{user?.totalXp || 0} XP • {user?.remainingInterviews ?? 0} lượt</span>
           </div>
           <div className="profile-settings" title="Cài đặt">
             <Settings size={18} />
@@ -168,11 +168,46 @@ export function AppShell() {
       <div className="main-column workspace-stage">
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 2rem', borderBottom: 'none' }}>
           <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-            {location.pathname === '/dashboard' || location.pathname === '/' ? 'Trang chủ' : 
-             location.pathname.includes('/questions') ? 'Ngân hàng câu hỏi' : 
-             location.pathname.includes('/interview-sets') ? 'Luyện tập phỏng vấn' : 
-             location.pathname.includes('/practice') || location.pathname.includes('/interview') ? 'Luyện tập' : 
-             location.pathname.includes('/profile') ? 'Hồ sơ cá nhân' : 'Trang chủ'}
+            {location.pathname.includes('/practice') ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#9ca3af', fontSize: '0.9rem', fontWeight: 500 }}>
+                <Link to="/questions" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = '#fff')} onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}>
+                  Ngân hàng câu hỏi
+                </Link>
+                <span style={{ opacity: 0.7 }}>›</span>
+                <span style={{ color: '#fff', fontWeight: 600 }}>Phiên luyện tập</span>
+              </div>
+            ) : location.pathname.includes('/prep') ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#9ca3af', fontSize: '0.9rem', fontWeight: 500 }}>
+                <Link to="/interview-sets" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = '#fff')} onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}>
+                  Luyện tập phỏng vấn
+                </Link>
+                <span style={{ opacity: 0.7 }}>›</span>
+                <span style={{ color: '#fff', fontWeight: 600 }}>Chuẩn bị</span>
+              </div>
+            ) : location.pathname.includes('/result') && location.pathname.includes('/questions') ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#9ca3af', fontSize: '0.9rem', fontWeight: 500 }}>
+                <Link to="/questions" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = '#fff')} onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}>
+                  Ngân hàng câu hỏi
+                </Link>
+                <span style={{ opacity: 0.7 }}>›</span>
+                <span style={{ color: '#fff', fontWeight: 600 }}>Kết quả</span>
+              </div>
+            ) : location.pathname.includes('/result') && location.pathname.includes('/interview') ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#9ca3af', fontSize: '0.9rem', fontWeight: 500 }}>
+                <Link to="/interview-sets" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = '#fff')} onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}>
+                  Luyện tập phỏng vấn
+                </Link>
+                <span style={{ opacity: 0.7 }}>›</span>
+                <span style={{ color: '#fff', fontWeight: 600 }}>Kết quả</span>
+              </div>
+            ) : (
+              location.pathname === '/dashboard' || location.pathname === '/' ? 'Trang chủ' : 
+              location.pathname.includes('/questions') ? 'Ngân hàng câu hỏi' : 
+              location.pathname.includes('/interview-sets') ? 'Luyện tập phỏng vấn' : 
+              location.pathname.includes('/packages') ? 'Gói dịch vụ' : 
+              location.pathname.includes('/interview') ? 'Luyện tập' : 
+              location.pathname.includes('/profile') ? 'Hồ sơ cá nhân' : 'Trang chủ'
+            )}
           </div>
           <div className="workspace-stage-tools" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <ThemeToggle />

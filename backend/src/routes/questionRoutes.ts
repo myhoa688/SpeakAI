@@ -11,7 +11,12 @@ const router = Router();
 router.get('/', authRequired, async (req, res) => {
   const { industryGroup, industry, specialization, difficulty, limit = '20', page = '1' } = req.query as Record<string, string>;
 
-  const filter: Record<string, unknown> = { isPublished: true };
+  const filter: Record<string, unknown> = {
+    $or: [
+      { isPublished: true },
+      { userId: req.user?._id }
+    ]
+  };
   if (industryGroup) filter.industryGroup = industryGroup;
   if (industry) filter.industry = industry;
   if (specialization) filter.specialization = specialization;
@@ -45,13 +50,54 @@ router.get('/', authRequired, async (req, res) => {
 });
 
 /**
+ * POST /questions
+ * Tạo câu hỏi mới cho user (isPublished = false)
+ */
+router.post('/', authRequired, async (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question) {
+      return res.status(400).json({ error: 'Nội dung câu hỏi không được để trống' });
+    }
+
+    const newQuestion = await Question.create({
+      userId: req.user!._id,
+      industryGroup: 'Tùy chỉnh',
+      industry: req.user!.industry || 'Tùy chỉnh',
+      specialization: req.user!.specialization || '',
+      question: question.trim(),
+      difficulty: 'medium',
+      isPublished: false,
+      tags: ['Tự tạo']
+    });
+
+    return res.status(201).json({
+      id: newQuestion._id.toString(),
+      industryGroup: newQuestion.industryGroup,
+      industry: newQuestion.industry,
+      specialization: newQuestion.specialization,
+      question: newQuestion.question,
+      difficulty: newQuestion.difficulty,
+      tags: newQuestion.tags
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Lỗi khi tạo câu hỏi' });
+  }
+});
+
+/**
  * GET /questions/recommendations
  * Gợi ý câu hỏi theo profile của user đang đăng nhập
  */
 router.get('/recommendations', authRequired, async (req, res) => {
   const user = req.user!;
 
-  const filter: Record<string, unknown> = { isPublished: true };
+  const filter: Record<string, unknown> = {
+    $or: [
+      { isPublished: true },
+      { userId: req.user?._id }
+    ]
+  };
 
   if (user.industry) filter.industry = user.industry;
   else if (user.industryGroup) filter.industryGroup = user.industryGroup;

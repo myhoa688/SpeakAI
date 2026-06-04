@@ -349,7 +349,7 @@
 .xi-bottom-bar {
   position: fixed;
   bottom: 0;
-  left: 250px; /* Assuming sidebar is 250px */
+  left: 280px; /* matches .new-sidebar width */
   right: 0;
   background: #18191b;
   border-top: 1px solid rgba(255,255,255,0.1);
@@ -358,7 +358,7 @@
   justify-content: center;
   align-items: center;
   gap: 1rem;
-  z-index: 100;
+  z-index: 99; /* below rating modal */
 }
 
 .xi-btn {

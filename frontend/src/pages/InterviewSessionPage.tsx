@@ -28,10 +28,11 @@ export function InterviewSessionPage() {
   const [answer, setAnswer] = useState('');
   const [countdown, setCountdown] = useState<number | null>(null);
   const [sessionTimer, setSessionTimer] = useState(0);
-  const [questionTimer, setQuestionTimer] = useState(0);
+  const [questionTimer, setQuestionTimer] = useState(120);
   const [hintsOpen, setHintsOpen] = useState(true);
+  const [predefinedQuestions, setPredefinedQuestions] = useState<any[]>([]);
   // Track all questions seen so far for the roadmap
-  const [questionHistory, setQuestionHistory] = useState<Array<{ index: number; question: string }>>([]);
+  const [questionHistory, setQuestionHistory] = useState<Array<{ index: number; question: string, reason?: string }>>([]);
 
   // Tour State
   const [dontShowAgain, setDontShowAgain] = useState(false);
@@ -45,6 +46,14 @@ export function InterviewSessionPage() {
     statusRef.current = status;
   }, [status]);
   
+  // Camera và Audio
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoChunksRef = useRef<Blob[]>([]);
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (tourCompleted) {
@@ -53,21 +62,24 @@ export function InterviewSessionPage() {
       }
       timer = setInterval(() => {
         setSessionTimer(prev => prev + 1);
-        setQuestionTimer(prev => prev + 1);
+        setQuestionTimer(prev => (prev > 0 ? prev - 1 : 0));
       }, 1000);
     }
     return () => clearInterval(timer);
   }, [tourCompleted, status, countdown, sessionTimer]);
 
+  const hasStartedListeningRef = useRef(false);
+
   // Reset question timer and countdown when question changes
   useEffect(() => {
     if (currentQuestion) {
-      setQuestionTimer(0);
+      setQuestionTimer(120);
       setCountdown(null); // reset so countdown starts fresh
+      hasStartedListeningRef.current = false;
       // Track in history
       setQuestionHistory(prev => {
         const exists = prev.find(h => h.index === currentQuestion.index);
-        if (!exists) return [...prev, { index: currentQuestion.index, question: currentQuestion.question }];
+        if (!exists) return [...prev, { index: currentQuestion.index, question: currentQuestion.question, reason: currentQuestion.reason }];
         return prev;
       });
     }
@@ -75,11 +87,15 @@ export function InterviewSessionPage() {
 
   // Chia nhóm câu hỏi lộ trình
   const getRoadmapGroups = (total: number) => {
+    const q1 = Math.floor(total * 0.16) || 1; // VD: 2/12
+    const q2 = q1 + (Math.floor(total * 0.34) || 3); // VD: 4/12
+    const q3 = q2 + (Math.floor(total * 0.25) || 2); // VD: 3/12
     return [
-      { name: 'PHÙ HỢP VĂN HÓA', startIndex: 0, endIndex: Math.floor(total * 0.25) || 1 },
-      { name: 'KỸ NĂNG KỸ THUẬT', startIndex: Math.floor(total * 0.25) || 1, endIndex: Math.floor(total * 0.75) || 3 },
-      { name: 'HÀNH VI', startIndex: Math.floor(total * 0.75) || 3, endIndex: total }
-    ];
+      { name: 'PHÙ HỢP VĂN HÓA', startIndex: 0, endIndex: q1 },
+      { name: 'KỸ NĂNG KỸ THUẬT', startIndex: q1, endIndex: q2 },
+      { name: 'HÀNH VI', startIndex: q2, endIndex: q3 },
+      { name: 'GIẢI QUYẾT VẤN ĐỀ', startIndex: q3, endIndex: total }
+    ].filter(g => g.startIndex < g.endIndex);
   };
 
   const formatTime = (seconds: number) => {
@@ -89,21 +105,28 @@ export function InterviewSessionPage() {
   };
 
   useEffect(() => {
-    if (status === 'active' && tourCompleted && countdown === null) {
+    if (status === 'active' && tourCompleted && countdown === null && !isSpeaking && !hasStartedListeningRef.current) {
       setCountdown(5);
     }
-  }, [status, tourCompleted, countdown]);
+  }, [status, tourCompleted, countdown, isSpeaking]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (countdown !== null && countdown > 0 && status === 'active') {
+    if (countdown !== null && countdown > 0 && status === 'active' && !isSpeaking) {
       timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-    } else if (countdown === 0 && status === 'active') {
+    } else if (countdown === 0 && status === 'active' && !isSpeaking) {
+      hasStartedListeningRef.current = true;
       startListening();
       setCountdown(null);
     }
     return () => clearTimeout(timer);
-  }, [countdown, status]);
+  }, [countdown, status, isSpeaking]);
+
+  useEffect(() => {
+    if (questionTimer === 0 && status !== 'submitting' && status !== 'error' && status !== 'loading') {
+      document.getElementById('hidden-submit-btn')?.click();
+    }
+  }, [questionTimer, status]);
 
   useEffect(() => {
     if (!tourCompleted && status === 'active' && currentQuestion) {
@@ -176,17 +199,11 @@ export function InterviewSessionPage() {
     answerRef.current = answer;
   }, [answer]);
 
-  // Camera và Audio
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const videoChunksRef = useRef<Blob[]>([]);
+  // Camera và Audio đã được chuyển lên trên
 
   const recognitionRef = useRef<any>(null);
   const transcriptOffset = useRef('');
+  const isIntentionalStopRef = useRef(false);
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -208,10 +225,18 @@ export function InterviewSessionPage() {
       };
 
       recognition.onend = () => {
-        setStatus(prev => {
-          if (prev === 'listening') return 'active';
-          return prev;
-        });
+        if (statusRef.current === 'listening' && !isIntentionalStopRef.current) {
+          try {
+            recognition.start();
+          } catch (e) {
+            console.error('Lỗi khi khởi động lại recognition', e);
+          }
+        } else {
+          setStatus(prev => {
+            if (prev === 'listening') return 'active';
+            return prev;
+          });
+        }
       };
 
       recognition.onerror = (event: any) => {
@@ -229,6 +254,7 @@ export function InterviewSessionPage() {
     startCamera();
     return () => {
       stopCamera();
+      isIntentionalStopRef.current = true;
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
@@ -244,6 +270,7 @@ export function InterviewSessionPage() {
   const startListening = () => {
     if (!recognitionRef.current) return;
     transcriptOffset.current = answerRef.current;
+    isIntentionalStopRef.current = false;
     try {
       recognitionRef.current.start();
       setStatus('listening');
@@ -255,13 +282,7 @@ export function InterviewSessionPage() {
         mediaRecorderRef.current.start(1000); // slice data every 1s
       }
 
-      // Start 10s no-answer timer
-      if (noAnswerTimerRef.current) clearTimeout(noAnswerTimerRef.current);
-      noAnswerTimerRef.current = setTimeout(() => {
-        if (!answerRef.current.trim()) {
-           document.getElementById('hidden-fallback-btn')?.click();
-        }
-      }, 10000);
+      // Remove 10s no-answer timer to let user think as long as they want
     } catch (err) {
       console.error(err);
     }
@@ -363,6 +384,9 @@ export function InterviewSessionPage() {
         navigate(`/interview/${id!}/result`);
         return;
       }
+      if (res.data.predefinedQuestions) {
+        setPredefinedQuestions(res.data.predefinedQuestions);
+      }
       const stored = sessionStorage.getItem(`interview_q_${id}`);
       if (stored) {
         setCurrentQuestion(JSON.parse(stored) as CurrentQuestion);
@@ -397,10 +421,14 @@ export function InterviewSessionPage() {
   const handleSubmitAnswer = async () => {
     if (submittingRef.current) return;
     
-    const finalAnswer = answerRef.current.trim();
+    let finalAnswer = answerRef.current.trim();
     if (!finalAnswer) {
-      // setError('Vui lòng nhập hoặc ghi âm câu trả lời.');
-      return;
+      if (questionTimer === 0) {
+        finalAnswer = "Thí sinh không đưa ra câu trả lời.";
+      } else {
+        setError('Vui lòng nhập hoặc ghi âm câu trả lời của bạn trước khi nộp.');
+        return;
+      }
     }
 
     submittingRef.current = true;
@@ -408,6 +436,7 @@ export function InterviewSessionPage() {
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     if (noAnswerTimerRef.current) clearTimeout(noAnswerTimerRef.current);
 
+    isIntentionalStopRef.current = true;
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
@@ -546,17 +575,16 @@ export function InterviewSessionPage() {
 
   return (
     <div className="live-interview-shell">
-      {/* @ts-ignore */}
-      {(Joyride as any)({
-        steps: tourSteps,
-        run: runTour,
-        continuous: true,
-        showSkipButton: false,
-        disableOverlayClose: true,
-        spotlightPadding: 8,
-        tooltipComponent: CustomTooltip,
-        locale: { back: t('session.tourPrevious', 'Trước'), close: t('session.tourClose', 'Đóng'), last: t('session.tourStart', 'Bắt đầu'), next: t('session.tourNext', 'Tiếp theo'), skip: t('session.tourSkip', 'Bỏ qua') },
-        styles: {
+      <Joyride
+        steps={tourSteps}
+        run={runTour}
+        continuous={true}
+        showSkipButton={false}
+        disableOverlayClose={true}
+        spotlightPadding={8}
+        tooltipComponent={CustomTooltip}
+        locale={{ back: t('session.tourPrevious', 'Trước'), close: t('session.tourClose', 'Đóng'), last: t('session.tourStart', 'Bắt đầu'), next: t('session.tourNext', 'Tiếp theo'), skip: t('session.tourSkip', 'Bỏ qua') }}
+        styles={{
           options: {
             primaryColor: '#6366f1',
             backgroundColor: '#1e1b2e',
@@ -567,12 +595,11 @@ export function InterviewSessionPage() {
             backgroundColor: 'rgba(0, 0, 0, 0.5)',
           },
           spotlight: {
-            borderRadius: '12px',
-            boxShadow: '0 0 15px rgba(255, 255, 255, 0.2)',
+            // borderRadius is not valid for SVG element
           }
-        } as any,
-        callback: handleTourCallback
-      })}
+        }}
+        callback={handleTourCallback}
+      />
 
         {/* LEFT PANEL: HINTS - collapsible */}
         <aside id="hints-panel-step" className="live-panel hints-panel" style={{ width: hintsOpen ? '320px' : '0px', minWidth: hintsOpen ? '320px' : '0px', background: '#13111c', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden', transition: 'min-width 0.3s ease, width 0.3s ease' }}>
@@ -684,9 +711,9 @@ export function InterviewSessionPage() {
             <span style={{ color: '#a1a1aa' }}>💼</span>
             <span style={{ fontWeight: 600 }}>Technical Trainee</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(239,68,68,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', color: '#ef4444' }}>
-            <div className="indicator speaking" style={{ background: '#ef4444', width: '8px', height: '8px' }} />
-            <span style={{ fontWeight: 'bold', fontVariantNumeric: 'tabular-nums' }}>{formatTime(questionTimer)}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', padding: '0.5rem 1rem', borderRadius: '8px', color: '#fff' }}>
+            <div style={{ width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%' }}></div>
+            <span style={{ fontWeight: 'bold', fontVariantNumeric: 'tabular-nums' }}>{formatTime(sessionTimer)}</span>
           </div>
         </div>
 
@@ -695,7 +722,7 @@ export function InterviewSessionPage() {
             <img src="/assets/interviewer_avatar.png" alt="Interviewer Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             <div className="participant-tag" style={{ position: 'absolute', bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)', padding: '0.5rem 1.5rem', borderRadius: '30px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span className={`indicator ${isSpeaking ? 'speaking' : ''}`} style={{ background: '#3b82f6' }} />
-              <span style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap' }}>X Interview</span>
+              <span style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap' }}>SpeakAI</span>
             </div>
           </div>
           <div style={{ width: '48px', height: '48px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -725,19 +752,47 @@ export function InterviewSessionPage() {
         </div>
 
         <div className="transcript-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', marginTop: '2rem' }}>
-          <div id="transcript-step" style={{ background: '#13111c', padding: '1.5rem 2rem', borderRadius: '30px', display: 'flex', gap: '1.5rem', alignItems: 'center', width: '100%', maxWidth: '800px', border: '1px solid rgba(255,255,255,0.05)' }}>
-             <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%' }}></div>
-              {formatTime(sessionTimer)}
+          <div id="transcript-step" style={{ background: '#13111c', padding: '1.5rem 2rem', borderRadius: '30px', display: 'flex', gap: '1.5rem', alignItems: 'center', width: '100%', maxWidth: '800px', border: '1px solid rgba(255,255,255,0.05)', position: 'relative', overflow: 'hidden' }}>
+             <div style={{ background: 'rgba(239,68,68,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444' }}>
+              <div className="indicator speaking" style={{ background: '#ef4444', width: '8px', height: '8px' }} />
+              {formatTime(questionTimer)}
             </div>
              <div style={{ width: '1px', background: 'rgba(255,255,255,0.1)', height: '24px' }}></div>
-             <div style={{ flex: 1, fontSize: '1.2rem', lineHeight: 1.5 }}>
+             <div style={{ flex: 1, fontSize: '1.2rem', lineHeight: 1.5, filter: countdown !== null && countdown > 0 ? 'blur(2px)' : 'none', transition: 'filter 0.3s ease' }}>
                {tourCompleted ? q.question : (
                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <span style={{ color: '#64748b' }}>Đang đợi bắt đầu...</span>
                   </div>
                )}
              </div>
+
+             {/* Countdown Overlay */}
+             {countdown !== null && countdown > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  background: 'rgba(0, 0, 0, 0.75)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 10,
+                  color: 'white',
+                  animation: 'fadeIn 0.3s ease'
+                }}>
+                  <h3 style={{ fontSize: '1rem', margin: '0 0 1rem 0', fontWeight: 600 }}>Hãy suy nghĩ câu trả lời của bạn...</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ position: 'relative', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="36" height="36" viewBox="0 0 36 36" style={{ position: 'absolute', transform: 'rotate(-90deg)' }}>
+                        <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(59,130,246,0.2)" strokeWidth="3" />
+                        <circle cx="18" cy="18" r="15" fill="none" stroke="#3b82f6" strokeWidth="3" strokeDasharray="94.2" strokeDashoffset={94.2 * (1 - countdown / 5)} style={{ transition: 'stroke-dashoffset 1s linear' }} />
+                      </svg>
+                      <span style={{ fontWeight: 'bold', fontSize: '1.1rem', color: '#fff' }}>{countdown}</span>
+                    </div>
+                    <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Tự động ghi âm sau</span>
+                  </div>
+                </div>
+             )}
           </div>
           
           <div className="live-controls" style={{ marginTop: '3rem', display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', background: '#13111c', padding: '0.5rem 1rem', borderRadius: '40px', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -829,7 +884,12 @@ export function InterviewSessionPage() {
                                  </div>
                                )}
                                <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.82rem', color: isVisible ? (stepStatus === 'active' ? '#fff' : '#e2e8f0') : '#4b5563', fontWeight: stepStatus === 'active' ? 700 : 500, lineHeight: 1.3 }}>
-                                 {isVisible && historyItem ? historyItem.question.slice(0, 60) + (historyItem.question.length > 60 ? '...' : '') : 'Câu hỏi đang chờ...'}
+                                 {(() => {
+                                   if (!isVisible) return 'Câu hỏi đang chờ...';
+                                   const predefinedQ = predefinedQuestions[i];
+                                   const rawTitle = predefinedQ?.reason || historyItem?.reason || predefinedQ?.question || historyItem?.question || 'Đang xử lý...';
+                                   return rawTitle.slice(0, 70) + (rawTitle.length > 70 ? '...' : '');
+                                 })()}
                                </h4>
                                {stepStatus === 'completed' && (
                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '0.2rem' }}>

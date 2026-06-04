@@ -104,6 +104,8 @@ export function InterviewPrejoinPage() {
       
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       
+      let loudFrames = 0;
+
       const updateVolume = () => {
         if (!analyserRef.current) return;
         analyserRef.current.getByteFrequencyData(dataArray);
@@ -113,8 +115,13 @@ export function InterviewPrejoinPage() {
         const currentVol = Math.min(100, Math.max(0, (average / 128) * 100));
         setMicVolume(currentVol);
         
-        if (currentVol > 15) {
-           setAudioDetected(true);
+        if (currentVol > 30) {
+           loudFrames++;
+           if (loudFrames > 10) {
+             setAudioDetected(true);
+           }
+        } else {
+           loudFrames = 0;
         }
         
         animationRef.current = requestAnimationFrame(updateVolume);

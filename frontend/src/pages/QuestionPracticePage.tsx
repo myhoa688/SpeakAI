@@ -4,20 +4,9 @@ import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { 
   ChevronRight, ChevronDown, ChevronUp, Mic, MessageSquare, 
   BriefcaseBusiness, Building2, Lightbulb, AlertTriangle, HelpCircle, 
-  Clock, Heart, Loader2, Pause, Square, RotateCcw, Send, Play
+  Clock, Heart, Loader2, Pause, Square, RotateCcw, Send, Play, Bot, Sparkles
 } from 'lucide-react';
 import { api } from '../lib/api';
-
-const TranslationIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#fff' }}>
-    <path d="m5 8 6 6" />
-    <path d="m4 14 6-6 2-3" />
-    <path d="M2 5h12" />
-    <path d="M7 2h1" />
-    <path d="m22 22-5-10-5 10" />
-    <path d="M14 18h6" />
-  </svg>
-);
 
 export function QuestionPracticePage() {
   const { id } = useParams();
@@ -26,6 +15,20 @@ export function QuestionPracticePage() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isGeneratingAnalysis, setIsGeneratingAnalysis] = useState(false);
+
+  const handleGenerateAnalysis = async () => {
+    if (isGeneratingAnalysis) return;
+    setIsGeneratingAnalysis(true);
+    try {
+      const res = await api.post(`/questions/${id}/analyze`);
+      setQuestionData((prev: any) => ({ ...prev, analysis: res.data.analysis }));
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Có lỗi khi tạo gợi ý AI');
+    } finally {
+      setIsGeneratingAnalysis(false);
+    }
+  };
 
   const {
     recordingState,
@@ -247,41 +250,21 @@ export function QuestionPracticePage() {
     );
   }
 
+  const hasAnalysisContent = questionData.analysis && (
+    (questionData.analysis.interviewerEvaluation && questionData.analysis.interviewerEvaluation.length > 0) ||
+    (questionData.analysis.answerStructure && (
+      questionData.analysis.answerStructure.open || 
+      (questionData.analysis.answerStructure.points && questionData.analysis.answerStructure.points.length > 0) || 
+      questionData.analysis.answerStructure.close
+    )) ||
+    (questionData.analysis.importantTips && questionData.analysis.importantTips.length > 0) ||
+    (questionData.analysis.followUpQuestions && questionData.analysis.followUpQuestions.length > 0) ||
+    (questionData.analysis.commonMistakes && questionData.analysis.commonMistakes.length > 0)
+  );
+
   return (
     <div className="page-stack" style={{ paddingBottom: '80px' }}>
-
-      {/* Breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#9ca3af', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-        <Link to="/questions" style={{ color: 'inherit', textDecoration: 'none' }}>Ngân hàng câu hỏi</Link>
-        <ChevronRight size={14} />
-        <span style={{ color: '#fff', fontWeight: 600 }}>Phiên luyện tập</span>
-      </div>
-
-      {/* Language Selector */}
-      <div className="" style={{ background: '#18191b', backgroundImage: 'none', padding: '0.75rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)', boxShadow: '0 20px 44px rgba(3, 10, 20, 0.28)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#e5e7eb', fontWeight: 600, fontSize: '0.95rem' }}>
-          <div style={{ background: 'rgba(92, 86, 245, 0.2)', padding: '0.5rem', borderRadius: '8px', display: 'flex', color: '#8b5cf6' }}>
-             <TranslationIcon />
-          </div>
-          Ngôn ngữ luyện tập
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          {['English', 'Tiếng Việt', '日本語', '中文', '한국어'].map(lang => (
-            <button key={lang} style={{
-              background: lang === 'Tiếng Việt' ? '#5c56f5' : 'transparent',
-              color: lang === 'Tiếng Việt' ? '#fff' : '#e5e7eb',
-              border: lang !== 'Tiếng Việt' ? '1px solid rgba(255,255,255,0.1)' : 'none',
-              padding: '0.5rem 1.25rem',
-              borderRadius: '6px',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}>
-              {lang}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Main Content Start */}
 
       <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 340px', alignItems: 'start', gap: '1.5rem' }}>
         {/* Main Content (Left Column) */}
@@ -303,16 +286,16 @@ export function QuestionPracticePage() {
             </h2>
 
             {/* Rich Analysis Layout (từ dữ liệu thật) */}
-            {questionData.analysis ? (
+            {hasAnalysisContent ? (
               <>
-                {/* Gợi ý từ X Interview */}
+                {/* Gợi ý từ SpeakAI */}
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1.5rem', marginBottom: '1rem' }}>
                   <div 
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: showHint ? '1rem' : 0 }}
                     onClick={() => setShowHint(!showHint)}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#a78bfa', fontWeight: 600, fontSize: '0.95rem' }}>
-                      <Lightbulb size={18} /> Gợi ý từ X Interview
+                      <Lightbulb size={18} /> Gợi ý từ SpeakAI
                     </div>
                     {showHint ? <ChevronUp size={18} color="#9ca3af" /> : <ChevronDown size={18} color="#9ca3af" />}
                   </div>
@@ -504,6 +487,27 @@ export function QuestionPracticePage() {
                     )}
                   </div>
                 )}
+
+                {/* Nút Tạo Gợi Ý Bằng AI (Hiển thị nếu chưa có analysis) */}
+                {!hasAnalysisContent && (
+                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center', marginTop: '1.5rem' }}>
+                    <Bot size={32} color={isGeneratingAnalysis ? "#3b82f6" : "var(--text-secondary)"} style={{ opacity: isGeneratingAnalysis ? 1 : 0.5, marginBottom: '1rem' }} className={isGeneratingAnalysis ? 'animate-pulse' : ''} />
+                    <h3 style={{ fontSize: '1.05rem', color: '#fff', margin: '0 0 0.5rem' }}>{isGeneratingAnalysis ? 'AI đang phân tích...' : 'Chưa có gợi ý phân tích'}</h3>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '0 0 1.5rem', lineHeight: 1.5 }}>
+                      {isGeneratingAnalysis 
+                        ? 'Quá trình này có thể mất vài giây. Vui lòng đợi trong giây lát để AI tạo cấu trúc câu trả lời và gợi ý nhé.' 
+                        : 'Câu hỏi này chưa có gợi ý từ hệ thống. Bạn có muốn AI tự động tạo cấu trúc trả lời và gợi ý ngay bây giờ không?'}
+                    </p>
+                    {!isGeneratingAnalysis && (
+                      <button 
+                        onClick={handleGenerateAnalysis}
+                        style={{ padding: '0.6rem 1.2rem', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '100px', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+                      >
+                        <Sparkles size={16} /> Tạo gợi ý bằng AI
+                      </button>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
@@ -513,37 +517,38 @@ export function QuestionPracticePage() {
         {/* Right Sidebar */}
         <div className="detail-stack" style={{ gap: '1.5rem' }}>
           
-          {/* Việc làm gợi ý */}
+          {/* Mẹo phỏng vấn */}
           <div className="" style={{ background: '#18191b', backgroundImage: 'none', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)', boxShadow: '0 20px 44px rgba(3, 10, 20, 0.28)', overflow: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.25rem 0.75rem' }}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem', margin: 0, color: '#e5e7eb', fontWeight: 600 }}>
-                <BriefcaseBusiness size={18} color="#60a5fa" /> Việc làm gợi ý
+                <Lightbulb size={18} color="#f59e0b" /> Mẹo phỏng vấn
               </h3>
-              <span style={{ fontSize: '0.8rem', color: '#a78bfa', cursor: 'pointer', fontWeight: 500 }}>Xem tất cả</span>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {[
-                { title: 'Trợ lý Luật sư', company: 'Công ty Luật TNHH Everest • Hà Nội, Hưng Yên' },
-                { title: 'Luật sư cộng sự', company: 'Công ty Luật TNHH Everest • Hà Nội, Hưng Yên' }
-              ].map((job, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <div style={{ width: '40px', height: '40px', background: '#fff', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ color: '#dc2626', fontWeight: 800, fontSize: '0.55rem', letterSpacing: '-0.5px' }}>Everest</span>
-                    </div>
-                    <div>
-                      <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.9rem', color: '#f9fafb' }}>{job.title}</h4>
-                      <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', color: '#9ca3af' }}>{job.company}</p>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <span style={{ color: '#34d399', fontSize: '0.75rem', fontWeight: 500 }}>Thỏa thuận</span>
-                        <span style={{ color: '#60a5fa', fontSize: '0.75rem', fontWeight: 500 }}>Làm việc từ xa</span>
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight size={16} color="#6b7280" />
+              <div style={{ padding: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                <div style={{ width: '32px', height: '32px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '6px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: '#f59e0b', fontWeight: 800, fontSize: '1rem' }}>1</span>
                 </div>
-              ))}
+                <div>
+                  <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.9rem', color: '#fcd34d' }}>Phương pháp STAR</h4>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#9ca3af', lineHeight: 1.4 }}>
+                    Sử dụng cấu trúc <strong>S</strong>tuation, <strong>T</strong>ask, <strong>A</strong>ction, <strong>R</strong>esult để trả lời.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ padding: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                <div style={{ width: '32px', height: '32px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '6px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: '#3b82f6', fontWeight: 800, fontSize: '1rem' }}>2</span>
+                </div>
+                <div>
+                  <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.9rem', color: '#93c5fd' }}>Giao tiếp tự tin</h4>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#9ca3af', lineHeight: 1.4 }}>
+                    Giữ giao tiếp mắt với camera, mỉm cười và ngồi thẳng lưng.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 

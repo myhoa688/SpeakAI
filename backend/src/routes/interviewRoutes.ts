@@ -2,6 +2,8 @@ import { Router } from 'express';
 import multer from 'multer';
 import { authRequired } from '../middleware/auth.js';
 import { InterviewSession } from '../models/InterviewSession.js';
+import { InterviewSet } from '../models/InterviewSet.js';
+import { Question } from '../models/Question.js';
 import { User } from '../models/User.js';
 import { CV } from '../models/CV.js';
 import { generateInterviewQuestion, extractResumeText, analyzePractice, generateOverallInterviewFeedback } from '../services/aiService.js';
@@ -92,7 +94,7 @@ router.post('/start', authRequired, upload.single('cv'), async (req, res, next) 
       });
     }
 
-    const { difficulty, language, focusWeak, jdText, analysisContext, cvId } = req.body as { difficulty?: string, language?: string, focusWeak?: string, jdText?: string, analysisContext?: string, cvId?: string };
+    const { difficulty, language, focusWeak, jdText, analysisContext, cvId, interviewSetId } = req.body as { difficulty?: string, language?: string, focusWeak?: string, jdText?: string, analysisContext?: string, cvId?: string, interviewSetId?: string };
 
 
     const normalizedDifficulty = (['easy', 'medium', 'hard'] as const).includes(difficulty as any)
@@ -158,6 +160,16 @@ router.post('/start', authRequired, upload.single('cv'), async (req, res, next) 
         : `Phỏng vấn ${baseTopic}`;
     }
 
+    let predefinedQuestions: any[] = [];
+    if (interviewSetId) {
+      const set = await InterviewSet.findById(interviewSetId).populate('questionIds');
+      if (set && set.questionIds && set.questionIds.length > 0) {
+        predefinedQuestions = set.questionIds;
+      }
+    }
+
+    const totalQuestions = predefinedQuestions.length > 0 ? predefinedQuestions.length : getQuestionsCount(normalizedDifficulty);
+
     // Không gọi LLM lúc này, tạo session rỗng
     const session = await InterviewSession.create({
       userId: user._id,
@@ -170,11 +182,12 @@ router.post('/start', authRequired, upload.single('cv'), async (req, res, next) 
       jobDescriptionText: fullJobDescription,
       company: companyName,
       cvText,
-      totalQuestions: getQuestionsCount(normalizedDifficulty),
+      totalQuestions: totalQuestions,
       currentQuestionIndex: 0,
       answers: [],
       status: 'in_progress',
-      language: targetLanguage
+      language: targetLanguage,
+      predefinedQuestions: predefinedQuestions
     });
 
     // Trừ lượt phỏng vấn
@@ -214,16 +227,22 @@ router.post('/:id/generate-script', authRequired, async (req, res) => {
        });
     }
 
-    const firstQuestion = await generateInterviewQuestion({
-      difficulty: session.difficulty as 'easy' | 'medium' | 'hard',
-      targetRole: session.specialization || session.industry || user.targetRole || 'Software Engineer',
-      history: [],
-      cvSummary: session.cvText || user.bio,
-      topic: session.topic || `Phỏng vấn vị trí ứng tuyển`,
-      language: session.language,
-      jobDescription: session.jobDescriptionText,
-      company: session.company
-    });
+    let firstQuestion;
+    if (session.predefinedQuestions && session.predefinedQuestions.length > 0) {
+      const q = session.predefinedQuestions[0] as any;
+      firstQuestion = { question: q.question, reason: 'Lấy từ bộ đề', challenge: 'Trả lời theo yêu cầu', suggestedFocus: [] };
+    } else {
+      firstQuestion = await generateInterviewQuestion({
+        difficulty: session.difficulty as 'easy' | 'medium' | 'hard',
+        targetRole: session.specialization || session.industry || user.targetRole || 'Software Engineer',
+        history: [],
+        cvSummary: session.cvText || user.bio,
+        topic: session.topic || `Phỏng vấn vị trí ứng tuyển`,
+        language: session.language,
+        jobDescription: session.jobDescriptionText,
+        company: session.company
+      });
+    }
 
     session.answers.push({
       questionId: '',
@@ -289,25 +308,42 @@ router.post('/:id/answer', authRequired, async (req, res) => {
   let strengths: string[] = [];
   let improvements: string[] = [];
 
-  try {
-    const analysis = await analyzePractice({
-      practiceType: 'interview',
-      difficulty: session.difficulty as 'easy' | 'medium' | 'hard',
-      transcript: answer.trim(),
-      durationSeconds: 60,
-      volumeSamples: [],
-      topic: currentQuestionText,
-      targetRole: session.specialization || session.industry || '',
-      profileSummary: user.bio || ''
-    });
-    score = analysis.totalScore || 60;
-    clarityScore = analysis.clarityScore || 60;
-    confidenceScore = analysis.confidenceScore || 60;
-    feedback = analysis.summary || 'Chưa nhận được đánh giá chi tiết.';
-    strengths = analysis.strengths || [];
-    improvements = analysis.improvements || [];
-  } catch {
-    // dùng giá trị mặc định nếu AI lỗi
+  const trimmedAnswer = answer.trim();
+
+  if (trimmedAnswer === "Thí sinh không đưa ra câu trả lời.") {
+    score = 0;
+    clarityScore = 0;
+    confidenceScore = 0;
+    feedback = "Bạn đã không đưa ra câu trả lời cho câu hỏi này do hết thời gian. Trong buổi phỏng vấn thực tế, việc im lặng sẽ làm mất điểm rất lớn. Hãy cố gắng luyện tập phản xạ nhanh hơn nhé.";
+    improvements = ["Luyện tập phản xạ trả lời nhanh hơn", "Tránh để thời gian chết quá lâu"];
+  } else if (trimmedAnswer.length < 15 && !trimmedAnswer.includes(' ')) {
+    // Nếu chỉ có 1-2 từ (có thể do thu nhầm tiếng ồn)
+    score = 10;
+    clarityScore = 10;
+    confidenceScore = 10;
+    feedback = "Hệ thống chỉ nghe được âm thanh rất ngắn hoặc tiếng ồn. Vui lòng nói to, rõ ràng và đầy đủ câu hơn.";
+    improvements = ["Đảm bảo micro hoạt động tốt", "Trả lời thành câu hoàn chỉnh"];
+  } else {
+    try {
+      const analysis = await analyzePractice({
+        practiceType: 'interview',
+        difficulty: session.difficulty as 'easy' | 'medium' | 'hard',
+        transcript: trimmedAnswer,
+        durationSeconds: 60,
+        volumeSamples: [],
+        topic: currentQuestionText,
+        targetRole: session.specialization || session.industry || '',
+        profileSummary: user.bio || ''
+      });
+      score = analysis.totalScore || 60;
+      clarityScore = analysis.clarityScore || 60;
+      confidenceScore = analysis.confidenceScore || 60;
+      feedback = analysis.summary || 'Chưa nhận được đánh giá chi tiết.';
+      strengths = analysis.strengths || [];
+      improvements = analysis.improvements || [];
+    } catch {
+      // dùng giá trị mặc định nếu AI lỗi
+    }
   }
 
   // Cập nhật câu trả lời vào record hiện tại (đã có question, giờ điền answer + scores)
@@ -375,8 +411,8 @@ router.post('/:id/answer', authRequired, async (req, res) => {
     if (overallFeedback.recommendedModels.length > 0) {
       session.summary += `\n\nCác công nghệ / mô hình nên tham khảo: ${overallFeedback.recommendedModels.join(', ')}.`;
     }
-    if (overallFeedback.missingKeywords.length > 0) {
-      session.summary += `\n\nCác từ khóa chuyên ngành còn thiếu: ${overallFeedback.missingKeywords.join(', ')}.`;
+    if ((overallFeedback.missingKeywords?.length ?? 0) > 0) {
+      session.summary += `\n\nCác từ khóa chuyên ngành còn thiếu: ${overallFeedback.missingKeywords?.join(', ')}.`;
     }
 
     session.currentQuestionIndex = nextIndex;
@@ -400,26 +436,32 @@ router.post('/:id/answer', authRequired, async (req, res) => {
   }
 
   // Sinh câu hỏi tiếp theo và lưu vào answers[nextIndex]
-  const history = session.answers
-    .filter((a) => a.answer)
-    .map((a) => ({ question: a.question, answer: a.answer }));
+  let nextQuestionData;
+  if (session.predefinedQuestions && session.predefinedQuestions.length > nextIndex) {
+    const q = session.predefinedQuestions[nextIndex] as any;
+    nextQuestionData = { question: q.question, reply: '', reason: 'Lấy từ bộ đề', challenge: 'Trả lời theo yêu cầu', suggestedFocus: [] };
+  } else {
+    const history = session.answers
+      .filter((a) => a.answer)
+      .map((a) => ({ question: a.question, answer: a.answer }));
 
-  const nextQuestion = await generateInterviewQuestion({
-    difficulty: session.difficulty as 'easy' | 'medium' | 'hard',
-    targetRole: session.specialization || session.industry || user.targetRole || '',
-    history,
-    cvSummary: session.cvText || user.bio,
-    topic: session.topic || `Phỏng vấn ${session.specialization || session.industry || 'chung'}`,
-    language: session.language,
-    jobDescription: session.jobDescriptionText,
-    company: session.company,
-    lastAnswerScore: score
-  });
+    nextQuestionData = await generateInterviewQuestion({
+      difficulty: session.difficulty as 'easy' | 'medium' | 'hard',
+      targetRole: session.specialization || session.industry || user.targetRole || '',
+      history,
+      cvSummary: session.cvText || user.bio,
+      topic: session.topic || `Phỏng vấn ${session.specialization || session.industry || 'chung'}`,
+      language: session.language,
+      jobDescription: session.jobDescriptionText,
+      company: session.company,
+      lastAnswerScore: score
+    });
+  }
 
   // Lưu câu hỏi tiếp theo vào answers ngay (answer rỗng)
   session.answers.push({
     questionId: '',
-    question: nextQuestion.question,
+    question: nextQuestionData.question,
     answer: '',
     score: 0,
     clarityScore: 0,
@@ -437,11 +479,11 @@ router.post('/:id/answer', authRequired, async (req, res) => {
     nextQuestion: {
       index: nextIndex,
       total: session.totalQuestions,
-      question: nextQuestion.question,
-      reply: nextQuestion.reply,
-      reason: nextQuestion.reason,
-      challenge: nextQuestion.challenge,
-      suggestedFocus: nextQuestion.suggestedFocus
+      question: nextQuestionData.question,
+      reply: nextQuestionData.reply,
+      reason: nextQuestionData.reason,
+      challenge: nextQuestionData.challenge,
+      suggestedFocus: nextQuestionData.suggestedFocus
     }
   });
 });
@@ -478,7 +520,8 @@ router.get('/:id/result', authRequired, async (req, res) => {
     xpEarned: session.xpEarned,
     answers: session.answers,
     completedAt: session.completedAt,
-    createdAt: session.createdAt
+    createdAt: session.createdAt,
+    predefinedQuestions: session.predefinedQuestions
   });
 });
 

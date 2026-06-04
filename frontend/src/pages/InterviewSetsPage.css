@@ -6,7 +6,8 @@
 }
 
 .xi-set-card {
-  background: linear-gradient(145deg, rgba(30, 27, 56, 0.6) 0%, rgba(15, 13, 28, 0.8) 100%);
+  background: #18191b !important;
+  background-image: none !important;
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 16px;
   padding: 1.5rem;
@@ -20,15 +21,7 @@
 }
 
 .xi-set-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.5), transparent);
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  display: none;
 }
 
 .xi-set-card:hover {
@@ -38,7 +31,7 @@
 }
 
 .xi-set-card:hover::before {
-  opacity: 1;
+  display: none;
 }
 
 .xi-set-header {
@@ -272,19 +265,25 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+.app-shell select.xi-filter-select,
+html[data-theme='dark'] .app-shell select.xi-filter-select,
 .xi-filter-select {
   appearance: none !important;
   -webkit-appearance: none !important;
   -moz-appearance: none !important;
+  background: transparent !important;
   background-color: transparent !important;
-  border: none;
-  color: inherit;
+  border: none !important;
+  color: inherit !important;
   font-size: 0.85rem;
   font-weight: 500;
-  outline: none;
+  outline: none !important;
   cursor: pointer;
-  padding: 0 1.5rem 0 0;
+  padding: 0 1.5rem 0 0 !important;
   height: 100%;
+  width: auto !important;
+  max-width: 100%;
+  box-shadow: none !important;
 }
 
 .xi-filter-select option {
@@ -353,4 +352,9 @@
   background: rgba(99, 102, 241, 0.1);
   border-color: rgba(99, 102, 241, 0.3);
   color: #8ba2fb;
+}
+
+.bg-dark-18191b {
+  background: #18191b !important;
+  background-image: none !important;
 }

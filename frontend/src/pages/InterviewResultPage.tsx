@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   AlertCircle, CheckCircle2, Clock, Sparkles, 
   Play, Volume2, Maximize, Lightbulb, ThumbsUp, 
   Target, FileText, ArrowLeft, ArrowRight, RotateCcw,
-  AlignLeft, Activity, ListChecks, UserCheck, ChevronDown, ChevronRight
+  AlignLeft, Activity, ListChecks, UserCheck, ChevronDown, ChevronRight,
+  Star, X as XIcon, Send
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { getVideo } from '../lib/indexedDB';
@@ -54,6 +56,42 @@ export function InterviewResultPage() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showTranscript, setShowTranscript] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+
+  // Rating Modal
+  const [showRating, setShowRating] = useState(false);
+  const [ratingScore, setRatingScore] = useState(0);
+  const [ratingHover, setRatingHover] = useState(0);
+  const [ratingComment, setRatingComment] = useState('');
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [ratingLoading, setRatingLoading] = useState(false);
+
+  // Tự động hiện popup đánh giá sau 3 giây nếu chưa đánh giá
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!ratingSubmitted) {
+        setShowRating(true);
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [ratingSubmitted]);
+
+  const submitRating = async () => {
+    if (!ratingScore || !id) return;
+    setRatingLoading(true);
+    try {
+      await api.post('/ratings', {
+        sessionType: 'interview',
+        sessionId: id,
+        score: ratingScore,
+        comment: ratingComment.trim()
+      });
+      setRatingSubmitted(true);
+    } catch {
+      // silent fail — don't block navigation
+    } finally {
+      setRatingLoading(false);
+    }
+  };
 
   useEffect(() => {
     void loadResult();
@@ -108,15 +146,6 @@ export function InterviewResultPage() {
   return (
     <div className="xi-result-container">
       
-      {/* BREADCRUMB */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: '#94a3b8', marginBottom: '1.5rem' }}>
-        <span style={{ cursor: 'pointer', transition: 'color 0.2s' }} onClick={() => navigate('/')} className="hover:text-white">Trang chủ</span>
-        <ChevronRight size={14} />
-        <span style={{ cursor: 'pointer', transition: 'color 0.2s' }} onClick={() => navigate('/interview-sets')} className="hover:text-white">Luyện tập phỏng vấn</span>
-        <ChevronRight size={14} />
-        <span style={{ color: '#fff', fontWeight: 500 }}>Kết quả</span>
-      </div>
-
       {/* HEADER */}
       <div className="xi-header">
         <div className="xi-header-score">
@@ -423,23 +452,164 @@ export function InterviewResultPage() {
       </div>
       
       {/* BOTTOM ACTION BAR */}
-      <div className="xi-bottom-bar">
-        <button className="xi-btn xi-btn-secondary" onClick={() => navigate('/interview-sets')}>
+      <div 
+        className="xi-bottom-bar" 
+        style={{ 
+          position: 'fixed', 
+          bottom: 0, 
+          left: '280px', 
+          right: 0, 
+          background: '#18191b', 
+          borderTop: '1px solid rgba(255,255,255,0.1)', 
+          padding: '1rem 2rem', 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          gap: '1rem', 
+          zIndex: 99 
+        }}
+      >
+        <button className="xi-btn xi-btn-secondary" onClick={() => { setShowRating(true); }}>
           <ArrowLeft size={16} /> Về danh sách
         </button>
         <button className="xi-btn xi-btn-primary" onClick={() => {
           if (selectedIndex < result.answers.length - 1) {
             setSelectedIndex(selectedIndex + 1);
           } else {
-            navigate('/interview-sets');
+            setShowRating(true);
           }
         }}>
           Tiếp tục <ArrowRight size={16} />
         </button>
-        <button className="xi-btn xi-btn-purple">
+        <button className="xi-btn xi-btn-purple" onClick={() => setShowRating(true)}>
           <RotateCcw size={16} /> Thử lại toàn bộ
         </button>
+        <button className="xi-btn" style={{ background: '#f59e0b', color: '#fff', border: 'none' }} onClick={() => setShowRating(true)}>
+          <Star size={16} /> Đánh giá
+        </button>
       </div>
+
+      {/* RATING MODAL — rendered via portal to escape stacking contexts */}
+      {showRating && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.82)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 99999, padding: '1rem'
+        }}>
+          <div style={{
+            background: '#141416',
+            border: '1px solid rgba(255,255,255,0.10)',
+            borderRadius: 20,
+            padding: '2.5rem 2rem',
+            width: '100%', maxWidth: 480,
+            display: 'flex', flexDirection: 'column', gap: '1.5rem',
+            boxShadow: '0 32px 80px rgba(0,0,0,0.7)'
+          }}>
+            {ratingSubmitted ? (
+              <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+                <div style={{ fontSize: 52, marginBottom: '1rem' }}>🎉</div>
+                <h3 style={{ color: '#fff', margin: '0 0 0.5rem', fontSize: '1.3rem', fontWeight: 700 }}>Cảm ơn bạn đã đánh giá!</h3>
+                <p style={{ color: '#94a3b8', fontSize: '0.9rem', margin: '0 0 1.75rem' }}>Nhận xét của bạn giúp chúng tôi cải thiện trải nghiệm tốt hơn.</p>
+                <button
+                  className="xi-btn xi-btn-primary"
+                  style={{ margin: '0 auto' }}
+                  onClick={() => setShowRating(false)}
+                >
+                  Xem kết quả
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h3 style={{ color: '#fff', margin: '0 0 0.3rem', fontSize: '1.2rem', fontWeight: 700 }}>Đánh giá buổi phỏng vấn</h3>
+                    <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0 }}>Phản hồi của bạn giúp chúng tôi nâng cao chất lượng AI</p>
+                  </div>
+                  <button
+                    onClick={() => setShowRating(false)}
+                    style={{ background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: 8, padding: '7px 9px', color: '#94a3b8', cursor: 'pointer', display: 'flex', lineHeight: 1 }}
+                  >
+                    <XIcon size={18} />
+                  </button>
+                </div>
+
+                {/* Stars */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                  <p style={{ color: '#e2e8f0', fontWeight: 600, margin: 0, fontSize: '1rem' }}>Bạn cảm thấy thế nào?</p>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {[1,2,3,4,5].map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setRatingScore(s)}
+                        onMouseEnter={() => setRatingHover(s)}
+                        onMouseLeave={() => setRatingHover(0)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                      >
+                        <Star
+                          size={40}
+                          fill={(ratingHover || ratingScore) >= s ? '#FCD34D' : 'none'}
+                          color={(ratingHover || ratingScore) >= s ? '#FCD34D' : 'rgba(255,255,255,0.25)'}
+                          style={{ transition: 'all 0.12s' }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0, minHeight: '1.2em', fontWeight: 500 }}>
+                    {ratingScore === 1 ? '😞 Rất tệ' : ratingScore === 2 ? '😕 Tệ' : ratingScore === 3 ? '😐 Bình thường' : ratingScore === 4 ? '😊 Tốt' : ratingScore === 5 ? '🔥 Xuất sắc!' : 'Di chuột hoặc bấm để chọn sao'}
+                  </p>
+                </div>
+
+                {/* Comment */}
+                <div>
+                  <label style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem' }}>Nhận xét (tuỳ chọn)</label>
+                  <textarea
+                    value={ratingComment}
+                    onChange={e => setRatingComment(e.target.value)}
+                    placeholder="Chia sẻ trải nghiệm của bạn về buổi phỏng vấn này..."
+                    rows={3}
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.10)',
+                      borderRadius: 10,
+                      color: '#e2e8f0', fontSize: '0.9rem',
+                      padding: '0.75rem 1rem', resize: 'vertical',
+                      fontFamily: 'inherit', outline: 'none'
+                    }}
+                    onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.6)')}
+                    onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.10)')}
+                  />
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    className="xi-btn xi-btn-secondary"
+                    onClick={() => setShowRating(false)}
+                  >
+                    Bỏ qua
+                  </button>
+                  <button
+                    type="button"
+                    className="xi-btn xi-btn-primary"
+                    disabled={!ratingScore || ratingLoading}
+                    onClick={submitRating}
+                    style={{ opacity: (!ratingScore || ratingLoading) ? 0.45 : 1, cursor: (!ratingScore || ratingLoading) ? 'not-allowed' : 'pointer' }}
+                  >
+                    <Send size={15} />
+                    {ratingLoading ? 'Đang gửi...' : 'Gửi đánh giá'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
 
     </div>
   );

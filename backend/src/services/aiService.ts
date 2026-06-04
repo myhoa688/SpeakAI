@@ -65,7 +65,7 @@ const questionAnalysisSchema = z.object({
 });
 
 const fillerTerms = ['ừ', 'ờ', 'ừm', 'kiểu như', 'nói chung', 'thực ra', 'actually', 'basically'];
-const corruptedPattern = /Ã|Â|Ä|á»|Æ|â€|Ă/;
+const corruptedPattern = /â€œ|â€\u009d|Ã¡|Ã¢|Ãª|Ã´|Ãº|á»‹|á» /;
 
 type UploadFile = {
   originalname: string;
@@ -2470,6 +2470,7 @@ type RealtimePracticeInput = {
   targetRole?: string;
   profileSummary?: string;
   userName?: string;
+  userId?: string;
 };
 
 const realtimeDifficultyGuide = {
@@ -2483,14 +2484,19 @@ const buildRealtimePracticeInstructions = (input: RealtimePracticeInput) => {
   const targetRole = normalizeText(input.targetRole) || 'chưa xác định';
   const profileSummary = normalizeText(input.profileSummary) || 'chưa có mô tả hồ sơ';
   const userName = normalizeText(input.userName) || 'học viên SpeakAI';
+  
+  const personaName = input.practiceType === 'interview' ? 'Chị Linh - HR Senior' : 'Anh Mark - Chuyên gia Thuyết trình';
+  const personaDesc = input.practiceType === 'interview' 
+    ? 'Bạn là một nhà tuyển dụng khó tính nhưng tâm lý, sắc sảo trong việc đặt câu hỏi để khai thác kỹ năng của ứng viên.'
+    : 'Bạn là một người hướng dẫn kỹ năng thuyết trình xuất sắc, luôn quan tâm đến sự tự tin, cấu trúc bài nói và cách thu hút người nghe.';
 
   return [
-    'Bạn là SpeakAI Live Coach, một huấn luyện viên hội thoại bằng giọng nói hoàn toàn bằng tiếng Việt có dấu.',
+    `Bạn là ${personaName}, một huấn luyện viên hội thoại bằng giọng nói hoàn toàn bằng tiếng Việt có dấu. ${personaDesc}`,
     `Người dùng hiện tại: ${userName}.`,
     `Chế độ luyện: ${practiceLabel}.`,
     `Chủ đề chính: ${normalizeText(input.topic) || 'Luyện tập SpeakAI'}.`,
     `Vai trò mục tiêu: ${targetRole}.`,
-    `Bối cảnh hồ sơ: ${profileSummary}.`,
+    `Bối cảnh hồ sơ (CV): ${profileSummary}.`,
     `Mức độ mong muốn: ${input.difficulty}. ${realtimeDifficultyGuide[input.difficulty]}`,
     'Quy tắc bắt buộc:',
     '- Luôn nói tự nhiên, ngắn gọn, rõ ý, không lan man.',
@@ -2526,13 +2532,74 @@ const normalizeRealtimeProviderError = (raw: string) => {
   return raw;
 };
 
-export const createRealtimePracticeSession = async (_input: RealtimePracticeInput): Promise<never> => {
-  // Tính năng Realtime Voice chỉ hỗ trợ OpenAI Realtime API.
-  // Groq hiện chưa có tương đương.
-  throw new Error(
-    'Tính năng phòng hội thoại giọng nói thời gian thực hiện chưa khả dụng. ' +
-    'Bạn có thể dùng chế độ luyện tập văn bản hoặc tải file ghi âm để nhận phân tích.'
-  );
+export const createRealtimePracticeSession = async (input: RealtimePracticeInput) => {
+  if (!env.openaiApiKey) {
+    throw new Error('Chưa cấu hình OPENAI_API_KEY để sử dụng tính năng Realtime Voice.');
+  }
+
+  let memoryContext = '';
+  if (input.userId) {
+    try {
+      const { SessionMemory } = await import('../models/SessionMemory.js');
+      const memories = await SessionMemory.find({ userId: input.userId })
+        .sort({ createdAt: -1 })
+        .limit(3);
+
+      if (memories && memories.length > 0) {
+        const memoryStrings = memories.map((m, i) => {
+          return `Buổi ${i + 1} (Chủ đề: ${m.topic}):\n` +
+            `- Điểm số: Trôi chảy ${(m.scores as any)?.troiChay ?? (m.scores as any)?.fluency ?? '?'}, ` +
+            `Cấu trúc ${(m.scores as any)?.cauTruc ?? (m.scores as any)?.structure ?? '?'}, ` +
+            `Tự tin ${(m.scores as any)?.tuTin ?? (m.scores as any)?.confidence ?? '?'}, ` +
+            `Nội dung ${(m.scores as any)?.noiDung ?? (m.scores as any)?.content ?? '?'}\n` +
+            `- Tóm tắt: ${m.summary}\n` +
+            `- Điểm yếu: ${(m.improvements ?? (m as any).weaknesses ?? []).join(', ')}\n` +
+            `- Đã dặn lần sau: ${(m.promisedNextTime ?? (m as any).actionItems ?? []).join(', ')}`;
+        }).join('\n\n');
+
+        memoryContext = `\n[LỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ]\nĐây là thông tin từ 3 lần nói chuyện trước của ứng viên này:\n${memoryStrings}\n\nNhiệm vụ của bạn: Dựa vào lịch sử này, hãy MỞ ĐẦU cuộc hội thoại bằng cách chào mừng quay lại, nhắc tên họ, nhắc nhẹ về 1 điểm yếu hoặc tiến bộ từ buổi trước, và hỏi xem hôm nay họ đã sẵn sàng chưa. Hãy nói chuyện tự nhiên như hai người đã quen biết làm việc cùng nhau.`;
+      } else {
+        memoryContext = `\n[LỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ]\nChưa có dữ liệu. Đây là lần đầu tiên bạn gặp ứng viên này. Hãy mở đầu bằng một câu chào hỏi chuyên nghiệp, giới thiệu bản thân bạn và hỏi họ đã sẵn sàng chưa.`;
+      }
+    } catch (e) {
+      logger.error('Error fetching SessionMemory: ' + String(e));
+    }
+  }
+
+  const instructions = buildRealtimePracticeInstructions(input) + memoryContext;
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/realtime/sessions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: env.openaiRealtimeModel || 'gpt-4o-realtime-preview-2024-12-17',
+        voice: env.openaiRealtimeVoice || 'alloy',
+        instructions: instructions,
+        turn_detection: {
+          type: "server_vad",
+          threshold: 0.5,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 1000,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error(`OpenAI Realtime Token Error: ${errorText}`);
+      throw new Error(normalizeRealtimeProviderError(errorText) || 'Không thể tạo phiên thoại từ OpenAI.');
+    }
+
+    const data = await response.json() as any;
+    return { client_secret: data.client_secret?.value ?? data.client_secret };
+  } catch (error: any) {
+    logger.error(`[createRealtimePracticeSession] Error: ${error.message}`);
+    throw new Error(normalizeRealtimeProviderError(error.message));
+  }
 };
 
 const fallbackQuestionBank = {
@@ -2761,38 +2828,20 @@ export const generateOverallInterviewFeedback = async (input: {
       strengths: [],
       improvements: [],
       recommendedModels: [],
-      matchedKeywords: [],
-      missingKeywords: []
     };
   }
 
-  const promptContent = 
-    `Bạn là một chuyên gia đánh giá năng lực ứng viên cấp cao, được huấn luyện bằng các bộ dữ liệu công nghệ lớn từ Kaggle (dịch sang tiếng Việt).\n` +
-    `Hãy đánh giá tổng quan toàn bộ phiên phỏng vấn dựa trên lịch sử hỏi đáp và mục tiêu ứng tuyển của ứng viên.\n` +
-    `Yêu cầu:\n` +
-    `- Đối chiếu câu trả lời với các từ khóa chuyên ngành, chỉ ra từ khóa nào ứng viên dùng tốt (matchedKeywords) và từ khóa nào còn thiếu (missingKeywords).\n` +
-    `- Gợi ý các mô hình/công nghệ tham khảo (ví dụ: GPT.5, LLM, Deep Learning, Transformer, hay các công nghệ đặc thù của ngành) để ứng viên cải thiện (recommendedModels).\n` +
-    `- Đưa ra nhận xét tổng thể (summary), điểm mạnh (strengths) và điểm cần khắc phục (improvements).\n\n` +
-    `Trả về JSON: { summary: string, strengths: string[], improvements: string[], recommendedModels: string[], matchedKeywords: string[], missingKeywords: string[] }\n`;
-
   try {
+    const prompt = `Phân tích tổng quan buổi phỏng vấn cho vị trí "${input.targetRole}".
+    CV: ${input.cvText}
+    Lịch sử: ${formatInterviewHistoryForPrompt(input.history)}
+    Trả về JSON schema: { summary: string, strengths: string[], improvements: string[], recommendedModels: string[], matchedKeywords: string[], missingKeywords: string[] }
+    KHÔNG dùng markdown. Tiếng Việt.`;
+
     const response = await aiClient.chat.completions.create({
-      model: env.openaiTextModel,
-      temperature: 0.4,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: promptContent
-        },
-        {
-          role: 'user',
-          content: 
-            `Vai trò mục tiêu: ${normalizeText(input.targetRole)}\n` +
-            `CV ứng viên:\n${input.cvText ? input.cvText.slice(0, 2000) : 'Chưa cung cấp'}\n` +
-            `Lịch sử phỏng vấn:\n${formatInterviewHistoryForPrompt(input.history)}`
-        }
-      ]
+      model: env.openaiTextModel || 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' }
     });
 
     const raw = response.choices[0]?.message?.content ?? '{}';
@@ -2820,25 +2869,69 @@ export const generateOverallInterviewFeedback = async (input: {
   }
 };
 
+export const buildRealtimeInstructions = (params: {
+  persona: { name: string; role: string; personalityPrompt: string };
+  profile: { name: string; targetRole: string; skills: string[]; strengths: string[]; weaknesses: string[]; goals: string[] };
+  lastSessions: Array<{ date: Date; mode: string; topic: string; scores: { overall: number }; improvements: string[]; promisedNextTime: string[] }>;
+  mode: string; topic: string; difficulty: string;
+}): string => {
+  const { persona, profile, lastSessions, mode, topic, difficulty } = params;
+  const history = lastSessions.length > 0
+    ? lastSessions.map((s, i) =>
+        `- Buổi ${i+1} (${new Date(s.date).toLocaleDateString('vi-VN')}, ${s.mode}/${s.topic}): Điểm ${s.scores?.overall ?? '?'}/10. Điểm yếu: ${s.improvements?.join(', ') || 'không rõ'}.`
+      ).join('\n')
+    : 'Đây là buổi đầu tiên.';
+  return [
+    `Bạn là ${persona.name}, một ${persona.role}. Tính cách: ${persona.personalityPrompt}.`,
+    'TÔN CHỈ HOẠT ĐỘNG:',
+    '- Bạn đang giao tiếp BẰNG GIỌNG NÓI như một cuộc gọi điện thoại thực tế.',
+    '- TUYỆT ĐỐI KHÔNG dùng ngôn ngữ học thuật, văn viết, không đọc format markdown hay gạch đầu dòng.',
+    '- Trả lời RẤT NGẮN GỌN (1-3 câu mỗi lượt). Cứ như hai người đang trò chuyện qua lại.',
+    
+    'QUY TẮC CỐT LÕI (PHẢI TUÂN THỦ):',
+    '1. KHÔNG LẶP LẠI CÂU HỎI: Khi người dùng đã trả lời xong một câu hỏi (hoặc không biết trả lời), hãy đưa ra nhận xét RẤT NGẮN (1 câu) rồi ĐẶT CÂU HỎI MỚI hoàn toàn khác hoặc đi sâu vào một khía cạnh khác. TUYỆT ĐỐI không hỏi lại câu vừa hỏi.',
+    '2. KHÔNG DẠY ĐỜI NHƯ MÁY: Khi nhận xét, hãy nói như một người bình thường (VD: "Ý này của bạn khá hay, nhưng nếu thêm... thì sẽ rõ hơn. Vậy bạn nghĩ sao về..."). Không phân tích dài dòng.',
+    '3. LẮNG NGHE & TƯƠNG TÁC: Phản hồi đúng vào ý người dùng vừa nói. Nếu họ nói chuyện phiếm, hãy phản hồi vui vẻ rồi kéo họ lại buổi phỏng vấn một cách khéo léo.',
+
+    `# HỒ SƠ ỨNG VIÊN (Chỉ để tham khảo ngữ cảnh)`,
+    `- Tên: ${profile.name}`,
+    `- Vị trí: ${profile.targetRole || 'chưa cập nhật'}`,
+    `- Kỹ năng: ${profile.skills?.join(', ') || 'chưa cập nhật'}`,
+    
+    `# LỊCH SỬ`,
+    history,
+
+    `# BỐI CẢNH HIỆN TẠI`,
+    `- Chế độ: ${mode}`,
+    `- Chủ đề: ${topic}`,
+    `- Độ khó: ${difficulty}`,
+
+    'TIẾN TRÌNH CƠ BẢN:',
+    '- Mở đầu: Chào hỏi bằng tên, giới thiệu vai trò nhanh gọn và bắt đầu hỏi.',
+    '- Trong phiên: Nghe -> Khen/Chỉnh nhẹ 1 câu -> Hỏi câu tiếp theo (Tuyệt đối không lặp câu).',
+    '- Kết thúc: Khi ứng viên muốn dừng, nói 2 câu chào và động viên.',
+  ].join('\n');
+};
+
 const buildInterviewSystemPrompt = (language: string, isFirstQuestion: boolean = false, company?: string, lastAnswerScore?: number) => {
   const companyName = company || 'X Interview';
 
-  // Adaptive logic: dua tren diem cau tra loi truoc
+  // Adaptive logic: dựa trên điểm câu trả lời trước
   const getAdaptiveBehavior = (): string => {
     if (isFirstQuestion || lastAnswerScore === undefined || lastAnswerScore === null) return '';
     if (lastAnswerScore >= 80) {
       return language === 'en'
         ? 'The candidate\'s last answer scored ' + lastAnswerScore + '/100 - excellent. Briefly acknowledge their strong point (1 sentence), then drill DEEPER with a technical follow-up or edge-case scenario.'
-        : 'Cau tra loi truoc dat ' + lastAnswerScore + '/100 - xuat sac. Khen ngoi ngan gon (1 cau), sau do hoi sau hon voi tinh huong edge-case de kiem tra gioi han kien thuc.';
+        : 'Câu trả lời trước đạt ' + lastAnswerScore + '/100 - xuất sắc. Khen ngợi ngắn gọn (1 câu), sau đó hỏi sâu hơn với tình huống edge-case để kiểm tra giới hạn kiến thức.';
     }
     if (lastAnswerScore >= 60) {
       return language === 'en'
         ? 'The candidate\'s last answer scored ' + lastAnswerScore + '/100 - decent. Ask a related question giving them a chance to show depth they may have missed.'
-        : 'Cau tra loi truoc dat ' + lastAnswerScore + '/100 - kha on. Hoi mot cau lien quan cho ho co hoi the hien chieu sau ma ho chua trinh bay het.';
+        : 'Câu trả lời trước đạt ' + lastAnswerScore + '/100 - khá ổn. Hỏi một câu liên quan cho họ có cơ hội thể hiện chiều sâu mà họ chưa trình bày hết.';
     }
     return language === 'en'
       ? 'The candidate\'s last answer scored ' + lastAnswerScore + '/100 - below expectations. Gently acknowledge their attempt, pivot to a more foundational question to rebuild confidence.'
-      : 'Cau tra loi truoc dat ' + lastAnswerScore + '/100 - duoi muc ky vong. Nhe nhang ghi nhan no luc, sau do chuyen sang cau nen tang hon de giup ho lay lai su tu tin.';
+      : 'Câu trả lời trước đạt ' + lastAnswerScore + '/100 - dưới mức kỳ vọng. Nhẹ nhàng ghi nhận nỗ lực, sau đó chuyển sang câu nền tảng hơn để giúp họ lấy lại sự tự tin.';
   };
 
   const adaptivePart = getAdaptiveBehavior();
@@ -2846,7 +2939,7 @@ const buildInterviewSystemPrompt = (language: string, isFirstQuestion: boolean =
   if (language === 'en') {
     const behavior = isFirstQuestion
       ? 'CRITICAL - FIRST QUESTION: Warmly introduce yourself as Alex, Senior Technical Interviewer at ' + companyName + '. Greet the candidate by name if found in CV. Ask them to briefly introduce themselves. Do NOT ask technical questions yet.'
-      : 'Ask the next interview question in English based on history and target role. Tailor questions by cross-referencing CV with JD.' + (adaptivePart ? '\n\nADAPTIVE: ' + adaptivePart : '');
+      : 'CRITICAL - NEXT QUESTION: Read the "Recent interview history" carefully. Do NOT repeat any previously asked questions, especially the introduction. Do NOT introduce yourself again. Go straight to the next technical or behavioral question based on the history.' + (adaptivePart ? '\n\nADAPTIVE: ' + adaptivePart : '');
     return (
       'You are Alex, a Senior Technical Interviewer at ' + companyName + '. You are professional, encouraging, and insightful.\n' + behavior + '\n\n' +
       'Return JSON: { reply: string, question: string, reason: string, challenge: string, suggestedFocus: string[] }\n' +
@@ -2857,7 +2950,7 @@ const buildInterviewSystemPrompt = (language: string, isFirstQuestion: boolean =
   if (language === 'ja') {
     const behavior = isFirstQuestion
       ? 'CRITICAL: Alexとして自己紹介し、' + companyName + 'のシニアインタビュアーとして候補者を温かく迎え、CVの名前で呼びかけてください。自己紹介を求めてください。まだ技術的な質問はしないでください。'
-      : '面接の履歴とターゲットロールに基づいて次の質問を設けてください。' + (adaptivePart ? '\n\n' + adaptivePart : '');
+      : 'CRITICAL: 次の質問です。「Recent interview history」を読んでください。すでに聞かれた質問や自己紹介を絶対に繰り返さないでください。すぐに次の質問に進んでください。' + (adaptivePart ? '\n\n' + adaptivePart : '');
     return (
       'あなたは' + companyName + 'のシニアテクニカルインタビュアーAlexです。プロで励ましのある姿勢で面接してください。\n' + behavior + '\n\n' +
       'JSONを返してください: { reply: string, question: string, reason: string, challenge: string, suggestedFocus: string[] }\n' +
@@ -2867,13 +2960,13 @@ const buildInterviewSystemPrompt = (language: string, isFirstQuestion: boolean =
 
   // Vietnamese (default)
   const viFirstBehavior = isFirstQuestion
-    ? 'QUAN TRONG - CAU HOI DAU TIEN: Tu gioi thieu ban la Alex, Senior Technical Interviewer tai ' + companyName + '. Chao ung vien bang ten neu tim thay trong CV (vi du: "Chao Dung, minh la Alex..."). Yeu cau ho gioi thieu ban than tong quan. TUYET DOI KHONG hoi cau hoi chuyen mon sau. Gom loi chao + cau hoi vao field \'question\'.'
-    : 'Dat cau hoi tiep theo bam sat lich su hoi dap va vai tro muc tieu. Uu tien tu khoa chuyen mon. Neu ung vien dinh chinh ten, ghi nhan va goi dung ten moi.' + (adaptivePart ? '\n\nHUONG DAN THICH NGHI: ' + adaptivePart : '');
+    ? 'QUAN TRỌNG - CÂU HỎI ĐẦU TIÊN: Tự giới thiệu bạn là Alex, Senior Technical Interviewer tại ' + companyName + '. Chào ứng viên bằng tên nếu tìm thấy trong CV (ví dụ: "Chào Dũng, mình là Alex..."). Yêu cầu họ giới thiệu bản thân tổng quan. TUYỆT ĐỐI KHÔNG hỏi câu chuyên môn sâu ngay lúc này. Gom lời chào + câu hỏi vào field \'question\'.'
+    : 'QUAN TRỌNG - CÂU HỎI TIẾP THEO: Bạn BẮT BUỘC PHẢI đọc kỹ "Recent interview history" bên dưới. TUYỆT ĐỐI KHÔNG hỏi lại bất kỳ câu hỏi nào đã có trong lịch sử. ĐẶC BIỆT: KHÔNG được chào lại, KHÔNG được giới thiệu bản thân (ví dụ CẤM lặp lại "Chào bạn, mình là Alex..."). Hãy đi thẳng vào câu hỏi chuyên môn/hành vi tiếp theo nối tiếp cuộc trò chuyện.' + (adaptivePart ? '\n\nHƯỚNG DẪN THÍCH NGHI: ' + adaptivePart : '');
 
   return (
-    'Ban la Alex, Senior Technical Interviewer tai ' + companyName + '. Ban co phong cach phong van chuyen nghiep, khich le va sau sac.\n' + viFirstBehavior + '\n\n' +
-    'Tra ve JSON: { reply: string, question: string, reason: string, challenge: string, suggestedFocus: string[] }\n' +
-    'Tat ca cac field phai bang tieng Viet co dau. Neu la cau hoi dau tien, de trong field \'reply\' va gom toan bo loi chao + cau hoi vao field \'question\'. TUYET DOI KHONG dat cau hoi tiep theo vao field \'reply\'. Field \'reply\' CHI dung de nhan xet ngan gon cau tra loi truoc do.'
+    'Bạn là Alex, Senior Technical Interviewer tại ' + companyName + '. Bạn có phong cách phỏng vấn chuyên nghiệp, khích lệ và sâu sắc.\n' + viFirstBehavior + '\n\n' +
+    'Trả về JSON: { reply: string, question: string, reason: string, challenge: string, suggestedFocus: string[] }\n' +
+    'Tất cả các field phải bằng tiếng Việt có dấu. Nếu là câu hỏi đầu tiên, để trống field \'reply\' và gom toàn bộ lời chào + câu hỏi vào field \'question\'. TUYỆT ĐỐI KHÔNG đặt câu hỏi tiếp theo vào field \'reply\'. Field \'reply\' CHỈ dùng để nhận xét ngắn gọn câu trả lời trước đó của ứng viên.'
   );
 };
 
@@ -2997,5 +3090,97 @@ export const generateSpeech = async (text: string): Promise<Buffer> => {
   } catch (error: any) {
     logger.error(`Error generating speech: ${error.message}`);
     throw new Error('Không thể tạo âm thanh AI từ văn bản lúc này.');
+  }
+};
+
+
+export const generateSessionSummaryJSON = async (
+  transcript: string,
+  mode: string,
+  topic: string
+) => {
+  if (!transcript || transcript.trim().length === 0) {
+    throw new Error('Transcript trong, khong the tao tong ket.');
+  }
+
+  if (!aiClient) throw new Error('OpenAI client chưa được khởi tạo.');
+
+  const modeLabel = mode === 'presentation' ? 'Thuyết trình' : 'Phỏng vấn';
+  const systemMsg = [
+    'Ban la giam khao luyen noi. Doc transcript duoi day va TRA VE JSON dung schema sau:',
+    '{',
+    '  "scores": { "troiChay": 0-10, "cauTruc": 0-10, "tuTin": 0-10, "noiDung": 0-10, "overall": 0-10 },',
+    '  "strengths": ["toi da 3 diem manh"],',
+    '  "improvements": ["toi da 3, cu the & hanh dong duoc"],',
+    '  "promisedNextTime": ["viec nen lam truoc buoi sau"],',
+    '  "summary": "2-3 cau tom tat tieng Viet"',
+    '}',
+    `Che do: ${modeLabel}. Chu de: "${topic}".`,
+    'Cham diem khach quan dua tren noi dung transcript. Chi tra JSON. Bat buoc tieng Viet.',
+  ].join('\n');
+
+  const response = await aiClient.chat.completions.create({
+    model: env.openaiTextModel || 'gpt-4o-mini',
+    temperature: 0.3,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: systemMsg },
+      { role: 'user',   content: `Transcript:\n${transcript}` },
+    ],
+  });
+
+  const raw = response.choices[0]?.message?.content ?? '{}';
+  try {
+    const p = JSON.parse(raw);
+    return {
+      scores: {
+        troiChay: Number(p.scores?.troiChay ?? 5),
+        cauTruc:  Number(p.scores?.cauTruc  ?? 5),
+        tuTin:    Number(p.scores?.tuTin    ?? 5),
+        noiDung:  Number(p.scores?.noiDung  ?? 5),
+        overall:  Number(p.scores?.overall  ?? 5),
+      },
+      strengths:        Array.isArray(p.strengths)        ? p.strengths        : [],
+      improvements:     Array.isArray(p.improvements)     ? p.improvements     : [],
+      promisedNextTime: Array.isArray(p.promisedNextTime) ? p.promisedNextTime : [],
+      summary:          typeof p.summary === 'string'     ? p.summary          : '',
+    };
+  } catch (err) {
+    logger.error('generateSessionSummaryJSON parse error: ' + String(err));
+    return {
+      scores: { troiChay: 5, cauTruc: 5, tuTin: 5, noiDung: 5, overall: 5 },
+      strengths: [], improvements: ['Hay thu luyen tap lai'],
+      promisedNextTime: [],
+      summary: 'Co loi trong qua trinh tong ket tu dong.',
+    };
+  }
+};
+
+
+
+export const extractLearnerProfile = async (cvText: string) => {
+  if (!aiClient) return null;
+  try {
+    const response = await aiClient.chat.completions.create({
+      model: env.openaiTextModel,
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: 'Bạn là chuyên gia nhân sự. Đọc CV sau và trích xuất thông tin người dùng. Trả về JSON theo cấu trúc: { targetRole: string, skills: string[], experience: {title:string, org:string, years:number}[], strengths: string[], weaknesses: string[], goals: string[] }. Bắt buộc trả về đúng định dạng JSON.'
+        },
+        {
+          role: 'user',
+          content: `CV Text:\n${cvText.slice(0, 8000)}`
+        }
+      ]
+    });
+    
+    const raw = response.choices[0]?.message?.content || '{}';
+    return JSON.parse(raw);
+  } catch (err) {
+    logger.error(`[extractLearnerProfile] ${err}`);
+    return null;
   }
 };
